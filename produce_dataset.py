@@ -6,6 +6,7 @@ import os
 import random
 import itertools
 from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError)
+from tool.manager import (Static, Manager)
 
 
 # this file is going to produce dataset in different conditions.
@@ -17,6 +18,8 @@ class GetDataset:  # 标准父类
         self.func_setting = []  # 可用函数配对的设置
         self.static_func_name = []  # 静态函数名集合
         self.static_func_setting = []  # 静态函数设置集合
+        self.func_manager = Manager(self)
+        self.static = Static(self)
 
     def detect_background(self):
         order = ["background"]
@@ -29,87 +32,6 @@ class GetDataset:  # 标准父类
     def detect_edge(self):
         order = ["edge"]
         self.order.append(order)
-
-    def static_func_register(self, func_name, func_type=0, input_mode=0):
-        if func_name not in self.static_func_name:
-            self.static_func_name.append(func_name)
-            self.static_func_setting.append([func_type, input_mode])
-            self.func_name.append(func_name)
-            self.func_setting.append([func_type, input_mode])
-        order = ["static", "register"]
-        self.order.append(order)
-
-    def static_func_record(self, func_name=None):
-        if func_name is not None:
-            order = ["static", func_name]
-        else:
-            order = ["static"]
-        self.order.append(order)
-
-    def static_func_run(self, func_name, inputs, func_type=0, input_mode=0):
-        if func_name not in self.static_func_name:
-            raise RegisterError(func_name)
-        order_name = func_name
-        if func_type == 0:
-            pass
-        elif func_type == 1:
-            func_name = eval(func_name)
-        else:
-            raise ModeError("func_type {}".format(func_type))
-        if input_mode == 0:
-            result = func_name(*inputs)
-            self.static_func_record(str(func_name))
-        elif input_mode == 1:
-            result = func_name(**inputs)
-            self.static_func_record(str(func_name))
-        else:
-            raise ModeError("input_mode {}".format(input_mode))
-        order = ["static", order_name]
-        self.order.append(order)
-        return result
-
-    def static_inter_func_run(self, func_point, inputs, access_mode=0):
-        if access_mode == 0:
-            index = self.static_func_name.index(func_point)
-            func_name = func_point
-            func_type = self.static_func_setting[index][0]
-            input_mode = self.static_func_setting[index][1]
-        elif access_mode == 1:
-            index = func_point
-            func_name = self.static_func_name[index]
-            func_type = self.static_func_setting[index][0]
-            input_mode = self.static_func_setting[index][1]
-        else:
-            raise ModeError("access_mode {}".format(access_mode))
-        self.static_func_run(func_name, inputs, func_type, input_mode)
-        order = ["static", "static_inter_func_run"]
-        self.order.append(order)
-        return result
-
-    def static_func_show(self):
-        for i in range(len(self.static_func_name)):
-            print(self.static_func_name[i])
-        order = ["static", "static_func_show"]
-        self.order.append(order)
-
-    def static_func_del(self, func_point, access_mode):
-        if access_mode == 0:
-            index = self.static_func_name.index(func_point)
-            self.static_func_name.pop(index)
-            self.static_func_setting.pop(index)
-            index_all = self.func_name.index(func_point)
-            self.func_name.pop(index_all)
-            self.func_setting.pop(index_all)
-        elif access_mode == 1:
-            index = func_point
-            func_name = self.static_func_name[index]
-            self.static_func_name.pop(index)
-            self.static_func_setting.pop(index)
-            index_all = self.func_name.index(func_name)
-            self.func_name.pop(index_all)
-            self.func_setting.pop(index_all)
-        else:
-            raise ModeError("access_mode {}".format(access_mode))
 
     def level_func(self):
         order = ["level"]
