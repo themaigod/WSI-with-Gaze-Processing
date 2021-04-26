@@ -32,3 +32,12 @@ class OutBoundError(Exception):
 
     def __str__(self):
         return self.msg + " is out of bound"
+
+
+class NoWriteError(Exception):
+    def __init__(self, name=None):
+        super().__init__()
+        self.msg = name
+
+    def __str__(self):
+        return "base class" + self.msg + " is not write"
