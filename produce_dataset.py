@@ -402,7 +402,7 @@ class DatasetRegularProcess(GetDataset):
         same_location = []
         same_value = []
         array = np.array(array)
-        array_no_repeat = set(array)
+        array_no_repeat = list(set(array))
         for i in range(len(array_no_repeat)):
             location = np.argwhere(array == array_no_repeat[i])
             if len(location) != 1:
@@ -417,8 +417,8 @@ class DatasetRegularProcess(GetDataset):
         # 其次：可能出现剩余, 剩余需尽可能少
         # 调用了get_same_num和transform_to_1
         array_num = [-1 for _ in range(len(array))]
-        same_value, same_location = self.get_same_num(array)
-        ratio = self.transform_to_1(array)
+        same_value, same_location = self.static_get_same_num(array)
+        ratio = self.static_transform_to_1(array)
         count_class = 0
         count_num = 0
         class_num = len(array)
@@ -509,7 +509,7 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_thresh", self.record_status)
         return img
 
-    def static_thresh_patch(self, img, patch_size):  # 转灰度然后二值化
+    def static_thresh_patch(self, img):  # 转灰度然后二值化
         # img = self.static_resize_patch(img, patch_size) # 舍去理由见定义
         img = self.static_bgr2gray(img)
         img = self.static_thresh(img)
@@ -862,7 +862,7 @@ class DatasetRegularProcess(GetDataset):
                 point, end_point[1], index=1))
         return result
 
-    def detect_edge(self, point_array=None, level_array=None, level: type(None) or int = None, patch_size=None,
+    def detect_edge(self, point_array: list=None, level_array=None, level: type(None) or int = None, patch_size=None,
                     level_downsamples=None,
                     level_dimensions=None, start_point=(0, 0), area_size=None, reformat=True):
         # point array输入area_location时，reformat输入True，如果输入的是detect_location或者point array， reformat应设为False
@@ -872,7 +872,7 @@ class DatasetRegularProcess(GetDataset):
         result = []
         if level_array is None:
             if level is None and len(point_array[0]) > 2:
-                level_array = [j[-2] for j in range(point_array)]
+                level_array = [j[-2] for j in point_array]
             elif level is not None:
                 level_array = [level for _ in range(len(point_array))]
             else:
@@ -894,6 +894,8 @@ class DatasetRegularProcess(GetDataset):
         return result
 
     def static_gain_level_positive(self, area_location, mode=0):
+        # 获取area_location使用的level：detect_level
+        # 获取area_location使用的level及数量：result，例如：result：[[0, 500], [1,30]]
         result = []
         detect_level = []
         for i in range(len(area_location)):
@@ -913,6 +915,14 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError("in static_gain_level_positive")
 
     def static_all_list(self, level_dimensions, detect_level, level_downsamples, patch_size, mode=0, location_type=0):
+        # 根据detect_level提供的level获得在这些level上的patch，包括detect location[location_type = 0]、area location[location_type = 1]两种形式，注意area location
+        # 形式的时候，注视点数量设为0。location_type = 2时提供一种不完备的形式, 即在代表每个patch元素中，同时储存detect location和area location
+        # 该location_type输出可以由static_separate_all_list_location_type_2转成正常的detect location和area location
+        # 更好的解决方案可能是生成area location，再经由static_area_location2detect_location生成detect location
+        # mode指导返回数据
+        # mode=0，返回的形式是[list1, list2, list3...], list1是level=detect_level[0]时所有的patch，以此类推
+        # mode=1，返回标准的location，如，[location1, location2, ...], 包含所有的patch
+        # mode=2, 同时返回mode=0和mode=1的结果
         result = []
         result_optional = []
         for i in range(len(detect_level)):
@@ -965,6 +975,7 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError("in static_all_list")
 
     def static_separate_all_list_location_type_2(self, all_list):
+        # 将static_all_list的location type=2的得到的类型转成常见的area_location, detect_location
         area_location = []
         detect_location = []
         for i in range(len(all_list)):
@@ -972,7 +983,14 @@ class DatasetRegularProcess(GetDataset):
             detect_location.append(all_list[i][1])
         return area_location, detect_location
 
-    def static_del_exist_point_array(self, all_list, detect_location, all_type=0, location_type=0):
+    def static_area_location2detect_location(self, area_location):
+        # area_location转detect_location
+        detect_location = [area_location[i][1:] for i in range(len(area_location))]
+        return detect_location
+
+    def static_detect_exist_point_array(self, all_list, detect_location, all_type=0, location_type=0):
+        # 检测all_list中的元素是否存在于detect_location
+        # 返回值是长度与all_list相同的list，元素为bool值，False表示该位置的元素存在于detect_location
         if all_type == 1:
             all_list = [i[1:] for i in all_list]
         if location_type == 1:
@@ -983,7 +1001,19 @@ class DatasetRegularProcess(GetDataset):
                 result[k] = False
         return result
 
+    def static_all_list_point_num_repair(self, all_list, area_location):
+        # 将area location格式的all list的注视点数量根据area_location进行修正
+        detect_area_location = [area_location[i][1:] for i in range(len(area_location))]
+        for j in range(len(all_list)):
+            if all_list[j][1:] in detect_area_location:
+                index = detect_area_location.index(all_list[j][1:])
+                all_list[j][0] = area_location[index][0]
+        return all_list
+
     def set_label(self, x=None, y=None, level=None, patch_size=None, detect_location=None, location_type=0, mode=0):
+        # 依据是否包含在detect_location获得标签
+        # detect_location一般是确认包含注视点的patch集合
+        # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
         if mode == 0:
             point = x
             if location_type == 1:
@@ -1018,21 +1048,21 @@ class DatasetRegularProcess(GetDataset):
             label = 0
         return label
 
-    def static_distance_euclidean(self, point1, point2):  # 欧氏距离
+    def static_distance_euclidean(self, point1, point2):  # 欧氏距离 两点的计算
         s = 0
         for i in range(len(point1)):
             s += pow(point1[i] - point2[i], 2)
         s = pow(s, 0.5)
         return s
 
-    def static_distance_minkowsk(self, point1, point2, p):  # 闵式距离
+    def static_distance_minkowsk(self, point1, point2, p):  # 闵式距离 两点的计算
         s = 0
         for i in range(len(point1)):
             s += pow(point1[i] - point2[i], p)
         s = pow(s, 1 / p)
         return s
 
-    def static_distance_standardized_euclidean(self, point1, point2):  # 标准化的欧氏距离
+    def static_distance_standardized_euclidean(self, point1, point2):  # 标准化的欧氏距离 两点的计算
         s = 0
         sk = [0 for _ in range(len(point1))]
         for i in range(len(point1)):
@@ -1043,11 +1073,12 @@ class DatasetRegularProcess(GetDataset):
         s = pow(s, 0.5)
         return s
 
-    def static_distance_KL(self, point1, point2):
+    def static_distance_KL(self, point1, point2): # KL散度 两点的计算
         return entropy(point1, point2)
 
-    def static_distance_euclidean_group(self, point_group1,
-                                        to_list=True):  # shape = (len(point_group1), len(point_group1))
+    def static_distance_euclidean_group(self, point_group1, to_list=True):
+        # 欧几里得距离 对一群点互相之间计算
+        # 输出shape = (len(point_group1), len(point_group1))
         point_group1 = np.array(point_group1)
         point_group2 = point_group1
         distance = np.reshape(np.sum(point_group1 ** 2, axis=1), (point_group1.shape[0], 1)) + np.sum(point_group2 ** 2,
@@ -1057,8 +1088,9 @@ class DatasetRegularProcess(GetDataset):
             distance = distance.tolist()
         return distance
 
-    def static_distance_minkowsk_group(self, point_group1, p, to_list=True,
-                                       transform=True):  # transform之前，shape = len(point_group1) * len(point_group1)
+    def static_distance_minkowsk_group(self, point_group1, p, to_list=True, transform=True):
+        # 闵氏距离 对一群点互相之间计算
+        # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
         point_group2 = point_group1
         vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
@@ -1074,8 +1106,9 @@ class DatasetRegularProcess(GetDataset):
             distance = distance.tolist()
         return distance
 
-    def static_distance_standardized_euclidean_group(self, point_group1, to_list=True,
-                                                     transform=True):  # transform之前，shape = len(point_group1) * len(point_group1)
+    def static_distance_standardized_euclidean_group(self, point_group1, to_list=True, transform=True):
+        # 标准化欧几里得距离 对一群点互相之间计算
+        # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
         distance_group = pdist(point_group1, "seuclidean", V=None)
         distance = np.zeros((len(point_group1), len(point_group1)))
@@ -1092,8 +1125,9 @@ class DatasetRegularProcess(GetDataset):
             distance = distance.tolist()
         return distance
 
-    def static_distance_KL_group(self, point_group1, to_list=True,
-                                 transform=True):  # transform之前，shape = len(point_group1) * len(point_group1)
+    def static_distance_KL_group(self, point_group1, to_list=True, transform=True):
+        # kl散度 对一群点互相之间计算
+        # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
         point_group2 = point_group1
         vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
@@ -1102,7 +1136,7 @@ class DatasetRegularProcess(GetDataset):
             vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
         for j in range(len(point_group1)):
             vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
-        distance = entropy(vector1, vector2, axis=1)
+        distance = np.array(entropy(vector1, vector2, axis=1))
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group1)))
         if to_list is True:
@@ -1110,6 +1144,7 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_distance_euclidean_groups(self, point_group1, point_group2, to_list=True):
+        # 欧几里得距离 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
         distance = np.reshape(np.sum(point_group1 ** 2, axis=1), (point_group1.shape[0], 1)) + np.sum(point_group2 ** 2,
@@ -1120,6 +1155,7 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_distance_minkowsk_groups(self, point_group1, point_group2, p, to_list=True, transform=True):
+        # 闵氏距离 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
         vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
@@ -1136,6 +1172,7 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_distance_standardized_euclidean_groups(self, point_group1, point_group2, to_list=True):
+        # 标准化欧几里得距离 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
         distance_group = pdist(np.vstack([point_group1, point_group2]), "seuclidean", V=None)
@@ -1148,6 +1185,7 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_distance_KL_groups(self, point_group1, point_group2, to_list=True, transform=True):
+        # kl散度 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
         vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
@@ -1156,7 +1194,7 @@ class DatasetRegularProcess(GetDataset):
             vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
         for j in range(len(point_group1)):
             vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
-        distance = entropy(vector1, vector2)
+        distance = np.array(entropy(vector1, vector2))
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group2)))
         if to_list is True:
@@ -1164,6 +1202,8 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_calculate_distance(self, point1, point2, mode=0, point_type=0, p=2):
+        # 计算点对点的距离
+        # 根据mode选计算方式
         if point_type == 1:
             point1 = point1[1:]
             point2 = point2[1:]
@@ -1177,7 +1217,10 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError("in static_calculate_distance")
         return distance
 
-    def static_start2center_list(self, detect_location: list, level_downsamples):  # 同时支持area_location和detect_location
+    def static_start2center_list(self, detect_location: list, level_downsamples):
+        # detect_location位置同时支持area_location和detect_location
+        # 转换detect_location中的坐标
+        # 原先代表patch的坐标是左上角的位置，转换后是中心点
         detect_location_result = detect_location.copy()
         for i in range(len(detect_location)):
             patch_size = detect_location[i][-1]
@@ -1190,8 +1233,10 @@ class DatasetRegularProcess(GetDataset):
             detect_location_result[i][-3] = y
         return detect_location_result
 
-    def static_all_distance(self, all_center_list, location_type=(0, 0), mode=0,
-                            p=2):  # location_type[0]负责尾部处理，[1]区分area_location, detect_location, mode区分使用的算法
+    def static_all_distance(self, all_center_list, location_type=(0, 0), mode=0, p=2):
+        # 计算all_center_list所有patch互相之间距离
+        # location_type[0]负责尾部处理，[1]区分area_location, detect_location, mode区分使用的算法
+        # mode指定使用哪种距离
         if location_type[0] == 0:
             if location_type[1] == 0:
                 location_array = [i[:-2] for i in all_center_list]
@@ -1222,6 +1267,8 @@ class DatasetRegularProcess(GetDataset):
         return distance
 
     def static_transform_num2mark_single(self, x, mode=0):
+        # 一般用于根据注视点数量转换成分值
+        # 目前是等值转换，未来可以重写或添加mode的方式引入新的计算方法
         if mode == 0:
             x = x
         else:
@@ -1229,18 +1276,24 @@ class DatasetRegularProcess(GetDataset):
         return x
 
     def static_transform_num2mark(self, area_location):
+        # 对整个area_location都进行根据注视点数量转换成分值
         for i in range(len(area_location)):
             area_location[i][0] = self.static_transform_num2mark_single(area_location[i][0])
         return area_location
 
     def static_calculate_point_mark(self, mark1, mark2, mode=0):
+        # 基于两点的分值计算两点间的权重值
+        # 目前采用相加除以2的方式计算，未来可以重写或添加mode的方式引入新的计算方法
         if mode == 0:
             mark = (mark1 + mark2) / 2
         else:
             raise ModeError(str(mode) + "static_calculate_point_mark")
         return mark
 
-    def static_calculate_point_group_mark(self, all_list, mode=0, to_list=True):  # 不支持detect_location
+    def static_calculate_point_group_mark(self, all_list, mode=0, to_list=True):
+        # 不支持detect_location
+        # 计算所有patch相互之间的权重值
+        # mode为static_calculate_point_mark所需要的mode，用于改变计算方法
         result_list = np.zeros((len(all_list), len(all_list)))
         for i in range(len(all_list)):
             for j in range(len(all_list)):
@@ -1252,6 +1305,7 @@ class DatasetRegularProcess(GetDataset):
         return result_list
 
     def static_calculate_point_group_distance_mark(self, result_list, distance, to_list=True):
+        # 基于距离和权重值计算所有patch之间的连接对patch重要性的贡献
         result_list = np.array(result_list)
         distance = np.array(distance)
         result = result_list / distance
@@ -1260,7 +1314,14 @@ class DatasetRegularProcess(GetDataset):
         return result
 
     def static_calculate_all_point_get_mark(self, final_list, mode=0):
-        result = [0 for _ in range(len(final_list))]
+        # 对于所有patch，计算基于该patch对于其他patch的连接的贡献的总和（mode=0）或者平均值（mode=1）
+        # 以此来衡量patch重要性
+        if mode == 0:
+            result = [0 for _ in range(len(final_list))]
+        elif mode == 1:
+            result = [float(0) for _ in range(len(final_list))]
+        else:
+            result = [0 for _ in range(len(final_list))]
         final_list = np.array(final_list)
         for i in range(len(final_list)):
             dynamic = 0
@@ -1276,6 +1337,9 @@ class DatasetRegularProcess(GetDataset):
         return result
 
     def static_zero_follow_mark(self, mark_result, num, reverse=False):
+        # 根据mark选择patch
+        # 取前num个索引
+        # 一般用于取negative标签（标签0）的样本的相关操作
         mark_index = [[i, mark_result[i]] for i in range(len(mark_result))]
         mark_index = sorted(mark_index, key=lambda s: s[1], reverse=reverse)
         if num > len(mark_index):
@@ -1284,6 +1348,9 @@ class DatasetRegularProcess(GetDataset):
         return index, num
 
     def static_zero_random_list(self, zero_list, num):
+        # 随机取索引
+        # 取前num个索引
+        # 一般用于取negative标签（标签0）的样本的相关操作
         random_list = list(range(zero_list))
         random.shuffle(random_list)
         if num > 1:
@@ -1300,22 +1367,23 @@ class DatasetRegularProcess(GetDataset):
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        config):
+        # 处理单张切片的样例流程，config引入对参数的设定
         if config.use_level_array is True:
-            level = None
+            level = None  # 如果使用level_array，将level置None，以免使用
         elif config.use_level_array is False:
-            level_array = None
+            level_array = None # 如果不使用level_array，将level_array置None，以免使用
         else:
             raise ExistError("use_level_array" + str(config.use_level_array))
         slide = self.read_slide(path)
         level_downsamples = slide.level_downsamples
         level_dimensions = slide.level_dimensions
-        img, level_img = self.read_image(slide, level_img)
-        img = self.static_thresh_patch(img, patch_size)
-        if config.use_start_point is True:
+        img, level_img = self.read_image(slide, level_img)  # 读入图像
+        img = self.static_thresh_patch(img)   # 二值化图像
+        if config.use_start_point is True:   # 查看是否使用start_point
             start_point = config.start_point
         else:
             start_point = (0, 0)
-        if config.use_area_size is True:
+        if config.use_area_size is True:   # 查看是否使用area_size
             area_size = config.area_size
         else:
             area_size = None
@@ -1325,18 +1393,23 @@ class DatasetRegularProcess(GetDataset):
                                                                                          start_point,
                                                                                          area_size, level_array,
                                                                                          level)
+            # 将注视点矩阵转换成代表patch的detect_location, area_location
         else:
             detect_location, area_location = self.static_calculate_area_point(point_array, patch_size,
                                                                               level_downsamples, level_array, level)
         background_result = self.detect_background(img, area_location, level_img, level_downsamples)
+        # 检测是否有在背景上的patch
         area_location = self.static_del_list_position_bool(area_location, background_result)
         detect_location = self.static_del_list_position_bool(detect_location, background_result)
+        # 删除在背景上的patch
         area_location, detect_location = self.detect_point_num(area_location, detect_location, config.threshold)
-
-        edge_result = self.detect_edge(area_location, None, None, patch_size, level_downsamples, level_dimensions,
+        # 根据阈值删除注视点数量不达标的patch
+        if config.detect_edge is True:
+            edge_result = self.detect_edge(area_location, None, None, patch_size, level_downsamples, level_dimensions,
                                        start_point, area_size)
-        area_location = self.static_del_list_position_bool(area_location, edge_result)
-        detect_location = self.static_del_list_position_bool(detect_location, edge_result)
+            # 检测是否有超出边缘的点，如有指定area_size，config.detect_edge应设为True
+            area_location = self.static_del_list_position_bool(area_location, edge_result)
+            detect_location = self.static_del_list_position_bool(detect_location, edge_result)
         detect_level, result_level = self.static_gain_level_positive(area_location, 2)
         all_list = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 2)
         all_area_location, all_detect_location = self.static_separate_all_list_location_type_2(all_list)
@@ -1350,11 +1423,11 @@ class DatasetRegularProcess(GetDataset):
         all_area_center_location = self.static_start2center_list(all_area_location, level_downsamples)
         all_distance = self.static_all_distance(all_area_center_location, location_type=(0, 1),
                                                 mode=config.distance_mode)
-        all_area_location_mark = self.static_transform_num2mark(all_area_location)
+        all_area_location_mark = self.static_transform_num2mark(all_area_location)  # 有点问题，急需修复
         all_mark = self.static_calculate_point_group_mark(all_area_location_mark, config.group_mark_mode, False)
         all_mark_distance = self.static_calculate_point_group_distance_mark(all_mark, all_distance, False)
         all_point_mark = self.static_calculate_all_point_get_mark(all_mark_distance, config.point_mark_mode)
-        zero_result = self.static_del_exist_point_array(all_point_mark, area_location, 1, 1)
+        zero_result = self.static_detect_exist_point_array(all_point_mark, area_location, 1, 1)
         zero_area_location_mark, area_location_mark = self.static_separate_list_position_bool(all_point_mark,
                                                                                               zero_result)
 

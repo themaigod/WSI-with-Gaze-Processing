@@ -8,3 +8,4 @@ class Config:  # 初始化参数
         self.threshold = 0
         self.distance_mode = 0
         self.point_mark_mode = 0
+        self.detect_edge = True
