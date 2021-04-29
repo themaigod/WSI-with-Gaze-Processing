@@ -411,7 +411,8 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("get_same_num", self.record_status)
         return same_value, same_location
 
-    def static_calculate_class_num(self, array: list, total_num: int): # 依照总数和比例矩阵划分得到每一类的数量，例如输入数据为（7，1.5，1.5）、100，得到的应该是[70, 15, 15]
+    def static_calculate_class_num(self, array: list,
+                                   total_num: int):  # 依照总数和比例矩阵划分得到每一类的数量，例如输入数据为（7，1.5，1.5）、100，得到的应该是[70, 15, 15]
         # 该函数生成会符合以下规则：
         # 最重要：比例相同，数量相同
         # 其次：可能出现剩余, 剩余需尽可能少
@@ -422,7 +423,7 @@ class DatasetRegularProcess(GetDataset):
         count_class = 0
         count_num = 0
         class_num = len(array)
-        for i in range(len(same_location)):     # 先划分有比例相同的
+        for i in range(len(same_location)):  # 先划分有比例相同的
             if count_class + len(same_location[i]) < class_num:
                 for j in range(len(same_location[i])):
                     select_num = int(ratio[same_location[i][0]] * total_num)
@@ -435,7 +436,7 @@ class DatasetRegularProcess(GetDataset):
                     array_num[same_location[i][j]] = select_num
                     count_num += select_num
                     count_class += 1
-        if count_num != total_num:   # 如果有剩余单个的类
+        if count_num != total_num:  # 如果有剩余单个的类
             unfinished_num = array_num.count(-1)
             for k in range(unfinished_num):
                 if k + 1 != unfinished_num:
@@ -459,7 +460,8 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_random_index", self.record_status)
         return random_list
 
-    def static_random_class_index(self, array: list, total_num: int):  # 依照总数和比例矩阵划分得到属于每一类的索引值矩阵，例如输入数据为（1， 1）、6，得到的可能是[[6,1,3], [2,5,4]]
+    def static_random_class_index(self, array: list,
+                                  total_num: int):  # 依照总数和比例矩阵划分得到属于每一类的索引值矩阵，例如输入数据为（1， 1）、6，得到的可能是[[6,1,3], [2,5,4]]
         # 调用了static_calculate_class_num和static_random_index
         use_list = []
         array_num = self.static_calculate_class_num(array, total_num)
@@ -498,7 +500,7 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_resize_patch", self.record_status)
         return img
 
-    def static_bgr2gray(self, img):    # 转灰度图像
+    def static_bgr2gray(self, img):  # 转灰度图像
         # 注意opencv读入的是bgr图像
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         self.static.record("static_bgr2gray", self.record_status)
@@ -862,7 +864,7 @@ class DatasetRegularProcess(GetDataset):
                 point, end_point[1], index=1))
         return result
 
-    def detect_edge(self, point_array: list=None, level_array=None, level: type(None) or int = None, patch_size=None,
+    def detect_edge(self, point_array: list = None, level_array=None, level: type(None) or int = None, patch_size=None,
                     level_downsamples=None,
                     level_dimensions=None, start_point=(0, 0), area_size=None, reformat=True):
         # point array输入area_location时，reformat输入True，如果输入的是detect_location或者point array， reformat应设为False
@@ -1073,7 +1075,7 @@ class DatasetRegularProcess(GetDataset):
         s = pow(s, 0.5)
         return s
 
-    def static_distance_KL(self, point1, point2): # KL散度 两点的计算
+    def static_distance_KL(self, point1, point2):  # KL散度 两点的计算
         return entropy(point1, point2)
 
     def static_distance_euclidean_group(self, point_group1, to_list=True):
@@ -1371,19 +1373,19 @@ class DatasetRegularProcess(GetDataset):
         if config.use_level_array is True:
             level = None  # 如果使用level_array，将level置None，以免使用
         elif config.use_level_array is False:
-            level_array = None # 如果不使用level_array，将level_array置None，以免使用
+            level_array = None  # 如果不使用level_array，将level_array置None，以免使用
         else:
             raise ExistError("use_level_array" + str(config.use_level_array))
         slide = self.read_slide(path)
         level_downsamples = slide.level_downsamples
         level_dimensions = slide.level_dimensions
         img, level_img = self.read_image(slide, level_img)  # 读入图像
-        img = self.static_thresh_patch(img)   # 二值化图像
-        if config.use_start_point is True:   # 查看是否使用start_point
+        img = self.static_thresh_patch(img)  # 二值化图像
+        if config.use_start_point is True:  # 查看是否使用start_point
             start_point = config.start_point
         else:
             start_point = (0, 0)
-        if config.use_area_size is True:   # 查看是否使用area_size
+        if config.use_area_size is True:  # 查看是否使用area_size
             area_size = config.area_size
         else:
             area_size = None
@@ -1406,30 +1408,45 @@ class DatasetRegularProcess(GetDataset):
         # 根据阈值删除注视点数量不达标的patch
         if config.detect_edge is True:
             edge_result = self.detect_edge(area_location, None, None, patch_size, level_downsamples, level_dimensions,
-                                       start_point, area_size)
+                                           start_point, area_size)
             # 检测是否有超出边缘的点，如有指定area_size，config.detect_edge应设为True
             area_location = self.static_del_list_position_bool(area_location, edge_result)
             detect_location = self.static_del_list_position_bool(detect_location, edge_result)
         detect_level, result_level = self.static_gain_level_positive(area_location, 2)
-        all_list = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 2)
-        all_area_location, all_detect_location = self.static_separate_all_list_location_type_2(all_list)
+        # 获取area_location使用的level，及各level下数量
+        # all_list = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 2)
+        # 基于detect_level获得包含的level的所有patch
+        # all_area_location, all_detect_location = self.static_separate_all_list_location_type_2(all_list)
+        # 已使用新的解决方案
+        all_area_location = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 0)
+        all_detect_location = self.static_area_location2detect_location(all_area_location)
         background_result = self.detect_background(img, all_area_location, level_img, level_downsamples)
         all_area_location = self.static_del_list_position_bool(all_area_location, background_result)
         all_detect_location = self.static_del_list_position_bool(all_detect_location, background_result)
-        edge_result = self.detect_edge(all_area_location, None, None, patch_size, level_downsamples, level_dimensions,
-                                       start_point, area_size)
-        all_area_location = self.static_del_list_position_bool(all_area_location, edge_result)
-        all_detect_location = self.static_del_list_position_bool(all_detect_location, edge_result)
+        if config.detect_edge is True:
+            edge_result = self.detect_edge(all_area_location, None, None, patch_size, level_downsamples,
+                                           level_dimensions, start_point, area_size)
+            all_area_location = self.static_del_list_position_bool(all_area_location, edge_result)
+            all_detect_location = self.static_del_list_position_bool(all_detect_location, edge_result)
         all_area_center_location = self.static_start2center_list(all_area_location, level_downsamples)
+        # 将储存的patch左上角坐标转换成patch中心位置坐标
         all_distance = self.static_all_distance(all_area_center_location, location_type=(0, 1),
                                                 mode=config.distance_mode)
-        all_area_location_mark = self.static_transform_num2mark(all_area_location)  # 有点问题，急需修复
+        # 计算所有patch的距离
+        all_area_location = self.static_all_list_point_num_repair(all_area_location, area_location)
+        # 将all_area_location中的注视点数量部分根据area_location换为真实数量（之前都是0）
+        all_area_location_mark = self.static_transform_num2mark(all_area_location)
+        # 将注视点数量转换成mark
         all_mark = self.static_calculate_point_group_mark(all_area_location_mark, config.group_mark_mode, False)
+        # 计算所有patch之间的权重（基于mark）
         all_mark_distance = self.static_calculate_point_group_distance_mark(all_mark, all_distance, False)
+        # 根据权重和距离，计算所有patch之间的连接的重要性
         all_point_mark = self.static_calculate_all_point_get_mark(all_mark_distance, config.point_mark_mode)
-        zero_result = self.static_detect_exist_point_array(all_point_mark, area_location, 1, 1)
+        # 根据所有patch之间的连接的重要性计算每个patch的重要性
+        zero_result = self.static_detect_exist_point_array(all_area_location, area_location, 1, 1)
+        # 对all_area_location检测哪些属于1，那些属于0
         zero_area_location_mark, area_location_mark = self.static_separate_list_position_bool(all_point_mark,
                                                                                               zero_result)
-
+        # 对patch的重要性的矩阵拆分出分别属于1和0
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
