@@ -10,6 +10,7 @@ from scipy.stats import entropy
 from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoWriteError)
 from tool.manager import (Static, Manager, Inner, SingleManager)
 from tool.dataProcesser import all_reader
+from config import Config
 
 
 # this file is going to produce dataset in different conditions.
@@ -35,8 +36,9 @@ class GetDataset:  # 标准父类
         self.repeat_manager = SingleManager(self, "repeat")  # 重复操作相关函数管理
         self.pixel_manager = SingleManager(self, "pixel")  # pixel操作相关函数管理
         self.zero_manager = SingleManager(self, "zero")  # 获取标签为0的数据相关函数管理
+        self.config = Config  # 导入config参数
 
-    def inner_register(self):
+    def inner_register(self):  # 类内函数注册
         self.inner.register(self.__init__)
         self.inner.register(self.inner_register)
         self.inner.register(self.record)
@@ -81,7 +83,11 @@ class GetDataset:  # 标准父类
             else:
                 raise ModeError("record" + str(mode))
 
-    def func_run(self, func_name, inputs, func_type=0, input_mode=0):  # 在类内运行函数
+    def func_run(self, func_name, inputs, func_type=0, input_mode=0):
+        # 在类内运行指定函数，func_type=0，使用函数名，（即函数指针），如函数定义为def a()，则func_name=a
+        # func_type=1，未达到预想功能不推荐使用，未来再考虑改良
+        # input_mode=0，输入参数应包装在tuple里，如(parameter_1, parameter_2, ...)
+        # input_mode=1，输入参数应包装在dict里，如{parameter_1_name: parameter_1, parameter_2_name: parameter_2, ...}
         if func_name not in self.func_name:
             raise RegisterError(func_name)
         if func_type == 0:
@@ -175,22 +181,22 @@ class GetDataset:  # 标准父类
         self.record("zero_func", self.record_status)
         return self.zero_manager
 
-    def read_image(self):  # 读取图像
+    def read_image(self):  # 读取图像，使用请重写
         self.record("read_image", self.record_status)
 
-    def read_image_area(self):
+    def read_image_area(self):  # 读取图像区域，使用请重写
         self.record("read_image_area", self.record_status)
 
-    def set_label(self):
+    def set_label(self):  # 获得标签，使用请重写
         self.record("set_label", self.record_status)
 
-    def process(self):
+    def process(self):  # 获得标签，使用请重写
         self.record("process", self.record_status)
 
-    def save(self):
+    def save(self):  # 保存数据，使用请重写
         self.record("save", self.record_status)
 
-    def get_order(self, mode=0):
+    def get_order(self, mode=0):  # 获得调用函数详情
         if mode == 0:
             s = 0
             for i in range(len(self.order)):
@@ -225,7 +231,7 @@ class GetInitDataset(GetDataset):
         self.repeat_add_mode = repeat_add_mode
         if self.init_status is True:
             print("starting reader...")
-            [name, point_array, level_array, path, max_num, image_label] = Da.allreader(erc_path)  # 获取数据
+            [name, point_array, level_array, path, max_num, image_label] = Da.all_reader(erc_path)  # 获取数据
             print("finish read point file")
             print("max num:{}".format(sum(max_num)))
             self.name_array = name
@@ -258,6 +264,7 @@ class GetInitDataset(GetDataset):
         self.inner.register(self.inner_re_level)
 
     def name2path(self, name, input_direc):
+        # 将erc文件存的路径转化为给定文件夹的路径
         """
         :param name:  filepath when erc is saved
         :param input_direc: real data filepath
@@ -274,6 +281,8 @@ class GetInitDataset(GetDataset):
         return new_path
 
     def name2path_in_list(self, name, input_direc):
+        # 将erc文件存的路径转化为给定文件夹的路径
+        # 批量转化，调用name2path
         """
         :param name: filepath when erc is saved
         :param input_direc:  real data filepath
@@ -343,7 +352,7 @@ class GetInitDataset(GetDataset):
             raise ModeError("inner_repeat_add" + str(mode))
         self.static.record("inner_repeat_add", self.record_status)
 
-    def re_level_single(self, level):
+    def re_level_single(self, level):  # 将储存的level转化为openslide的level
         times = 1
         open_slide_level = 0
         while True:
@@ -356,6 +365,9 @@ class GetInitDataset(GetDataset):
         return level
 
     def static_re_level(self, level_array):
+        # 将储存的level转化为openslide的level
+        # 批量转化，调用re_level_single
+        # static版本
         for v in range(len(level_array)):
             for w in range(len(level_array[v])):
                 self.re_level_single(level_array[v][w])
@@ -363,6 +375,9 @@ class GetInitDataset(GetDataset):
         return level_array
 
     def inner_re_level(self):
+        # 将储存的level转化为openslide的level
+        # 批量转化，调用re_level_single
+        # inner版本
         for v in range(len(self.level_array)):
             for w in range(len(self.level_array[v])):
                 self.re_level_single(self.level_array[v][w])
@@ -376,14 +391,14 @@ class DatasetRegularProcess(GetDataset):
         self.static.register(self.static_get_same_num)
         self.static.register(self.static_calculate_class_num)
 
-    def static_transform_to_1(self, array):
+    def static_transform_to_1(self, array):  # 将矩阵转化为总和为1的矩阵，该步骤预设为支持数据集划分比例总和不为1的情况，例如，(7, 2, 1)
         result = []
         for i in range(len(array)):
             result.append(array[r] / sum(array))
         self.static.record("transform_to_1", self.record_status)
         return result
 
-    def static_get_same_num(self, array):
+    def static_get_same_num(self, array):  # 统计array中有重复的元素和位置
         same_location = []
         same_value = []
         array = np.array(array)
@@ -396,14 +411,18 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("get_same_num", self.record_status)
         return same_value, same_location
 
-    def static_calculate_class_num(self, array: list, total_num: int):
+    def static_calculate_class_num(self, array: list, total_num: int): # 依照总数和比例矩阵划分得到每一类的数量，例如输入数据为（7，1.5，1.5）、100，得到的应该是[70, 15, 15]
+        # 该函数生成会符合以下规则：
+        # 最重要：比例相同，数量相同
+        # 其次：可能出现剩余, 剩余需尽可能少
+        # 调用了get_same_num和transform_to_1
         array_num = [-1 for _ in range(len(array))]
         same_value, same_location = self.get_same_num(array)
         ratio = self.transform_to_1(array)
         count_class = 0
         count_num = 0
         class_num = len(array)
-        for i in range(len(same_location)):
+        for i in range(len(same_location)):     # 先划分有比例相同的
             if count_class + len(same_location[i]) < class_num:
                 for j in range(len(same_location[i])):
                     select_num = int(ratio[same_location[i][0]] * total_num)
@@ -416,7 +435,7 @@ class DatasetRegularProcess(GetDataset):
                     array_num[same_location[i][j]] = select_num
                     count_num += select_num
                     count_class += 1
-        if count_num != total_num:
+        if count_num != total_num:   # 如果有剩余单个的类
             unfinished_num = array_num.count(-1)
             for k in range(unfinished_num):
                 if k + 1 != unfinished_num:
@@ -434,13 +453,14 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_calculate_class_num", self.record_status)
         return array_num
 
-    def static_random_index(self, total_num: int):
+    def static_random_index(self, total_num: int):  # 生成固定范围（0，total_num)的不重复的随机索引值的list
         random_list = list(range(total_num))
         random.shuffle(random_list)
         self.static.record("static_random_index", self.record_status)
         return random_list
 
-    def static_random_class_index(self, array: list, total_num: int):
+    def static_random_class_index(self, array: list, total_num: int):  # 依照总数和比例矩阵划分得到属于每一类的索引值矩阵，例如输入数据为（1， 1）、6，得到的可能是[[6,1,3], [2,5,4]]
+        # 调用了static_calculate_class_num和static_random_index
         use_list = []
         array_num = self.static_calculate_class_num(array, total_num)
         random_list = self.static_random_index(total_num)
@@ -452,16 +472,20 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_random_class_index", self.record_status)
         return use_list
 
-    def read_image(self, path=None, level=3):
-        if path is None:
-            raise ExistError("path")
-        slide = openslide.OpenSlide(path)
+    def read_slide(self, path):  # 根据路径得到slide
+        return openslide.OpenSlide(path)
+
+    def read_image(self, slide=None, level=3):  # 读取特定level下的图像, 一般用于获得背景
+        if slide is None:
+            raise ExistError("slide")
         [length_of_img, height_of_img] = slide.level_dimensions[level]
         img = np.array(slide.read_region([0, 0], level, [length_of_img, height_of_img]))[:, :, :3]
         self.static.record("read_image", self.record_status)
         return img, level
 
-    def static_resize_patch(self, img=None, patch_size=None):
+    def static_resize_patch(self, img=None, patch_size=None):  # 根据patch_size改变img大小
+        # 重新思考了这部分的作用，本来之前是用于在level_img=level的情况下使用，现在二者分开，好像意义不大，不如直接将level_img较高的值简便
+        # 暂时舍去
         if img is None:
             raise ExistError("img")
         if patch_size is None:
@@ -474,30 +498,33 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_resize_patch", self.record_status)
         return img
 
-    def static_bgr2gray(self, img):
+    def static_bgr2gray(self, img):    # 转灰度图像
+        # 注意opencv读入的是bgr图像
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         self.static.record("static_bgr2gray", self.record_status)
         return img
 
-    def static_thresh(self, img=None):
+    def static_thresh(self, img=None):  # 二值化，方法otsu
         ret2, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         self.static.record("static_thresh", self.record_status)
         return img
 
-    def static_thresh_patch(self, img, patch_size):
-        img = self.static_resize_patch(img, patch_size)
+    def static_thresh_patch(self, img, patch_size):  # 转灰度然后二值化
+        # img = self.static_resize_patch(img, patch_size) # 舍去理由见定义
         img = self.static_bgr2gray(img)
         img = self.static_thresh(img)
         self.static.record("static_thresh_patch", self.record_status)
         return img
 
-    def static_read_slide(self, path):
-        slide = openslide.OpenSlide(path)
-        level_downsamples = slide.level_downsamples
-        self.static.record("static_thresh_patch", self.record_status)
-        return slide, level_downsamples
+    # def static_read_slide(self, path):   # 简化成之前的read_slide了
+    #     slide = openslide.OpenSlide(path)
+    #     level_downsamples = slide.level_downsamples
+    #     self.static.record("static_thresh_patch", self.record_status)
+    #     return slide, level_downsamples
 
     def static_mul_div(self, a_list, mul=None, div=None, as_int=False, to_np=False):
+        # list与标量的乘法、除法、取整、转ndarray操作汇总
+        # 考虑到速度和list的特殊性，转化成ndarray操作
         a_list = np.array(a_list)
         if mul is not None:
             a_list = a_list * mul
@@ -511,21 +538,28 @@ class DatasetRegularProcess(GetDataset):
         return a_list
 
     def static_double_mul_div_int_mul_level(self, x, level_downsamples, level, point_pixel=0):
+        # 坐标x从point_pixel（level值）转到level（level值），例如从0转为2，x=（1000，1000），输出为（250， 250）
         x = self.static_mul_div(x, mul=level_downsamples[point_pixel], div=level_downsamples[level], as_int=True)
         return x
 
     def static_double_div_int_mul_patch(self, x, patch_size, level_downsamples, level):
+        # 同一patch上的注视点坐标转为patch的左上角坐标（坐标的level为level），然后转回level=0的坐标
         x = self.static_mul_div(self.static_mul_div(x, div=patch_size, as_int=True), mul=patch_size)
         x = self.static_mul_div(x, mul=level_downsamples[level])
         return x
 
     def static_calculate_point_patch_level(self, x, level_downsamples, level, patch_size, point_pixel=0):
+        # 同一patch上的注视点坐标转为patch的左上角坐标
+        # 调用了static_double_mul_div_int_mul_level和static_double_div_int_mul_patch分步实现
         x = self.static_double_mul_div_int_mul_level(x, level_downsamples, level, point_pixel)
         x = self.static_double_div_int_mul_patch(x, patch_size, level_downsamples, level)
         return x
 
     def static_calculate_point_patch_level_start_point(self, x, level_downsamples, level, patch_size,
                                                        start_point=(0, 0), point_pixel=0):
+        # 同一patch上的注视点坐标转为patch的左上角坐标，与static_calculate_point_patch_level区别在于
+        # 支持指定取patch起始点
+        # 如果对重叠取patch有需求，该函数能派上用场
         x = self.static_double_mul_div_int_mul_level(x, level_downsamples, level, point_pixel)
         start_point = self.static_double_mul_div_int_mul_level(start_point, level_downsamples, level, point_pixel)
         idx = [x[0] - start_point[0], x[1] - start_point[1]]
@@ -534,32 +568,50 @@ class DatasetRegularProcess(GetDataset):
         return x
 
     def static_calculate_point_patch_level_array(self, x, level_downsamples, level_array, patch_size, point_pixel=0):
+        # 对储存成list的所有注视点坐标进行：同一patch上的注视点坐标转为patch的左上角坐标
         for i in range(len(level_array)):
             x[i] = self.static_double_mul_div_int_mul_level(x[i], level_downsamples, level_array[i], point_pixel)
             x[i] = self.static_double_div_int_mul_patch(x[i], patch_size, level_downsamples, level)
         return x
 
     def static_transform_pixel(self, point, level_downsamples, patch_size, level, point_pixel=0):
+        # 将patch的索引转为level=point_pixel的坐标
+        # 比方说，patch的索引可能为（0，0）....（m，n）
+        # 那么例如，索引为（2，4），patch_size=224, level=1
+        # 坐标为（2*224*2，4*224*2）
         point = self.static_mul_div(point, mul=patch_size)
         point = self.static_double_mul_div_int_mul_level(point, level_downsamples, point_pixel, level)
         return point
 
     def static_detect_point_exist(self, point_array: list, x, y):
+        # 计算该坐标出现点坐标矩阵次数
         number_point = point_array.count([x, y])
         self.static.record("static_detect_point_exist", self.record_status)
         return number_point
 
     def static_calculate_area_point_single(self, point, level, level_point_array, area_location, detect_location,
                                            patch_size):
+        # 从基于注视点的point_array生成基于patch的矩阵
+        # 这是处理单个点，处理整个point_array的是static_calculate_area_point
+        # single结尾的都是处理单个数据，往往还有一个能够遍历所有数据的函数，该函数与去掉single的函数名相似
+        # 生成数据分别为area_location单个元素和detect_location单个元素
+        # area_location单个元素结构为[注视点数量, x坐标, y坐标, level, patch_size]
+        # detect_location单个元素结构为[x坐标, y坐标, level, patch_size]
+        # area_location,detect_location是之后处理数据主要数据结构！！！
         [id_x, id_y] = point
-        if [id_x, id_y, level] not in detect_location:
+        if [id_x, id_y, level, patch_size] not in detect_location:
             number_point = self.static_detect_point_exist(level_point_array, id_x, id_y)
-            detect_location.append([id_x, id_y, level])
+            detect_location.append([id_x, id_y, level, patch_size])
             area_location.append([number_point, id_x, id_y, level, patch_size])
         self.static.record("static_detect_point_exist", self.record_status)
         return detect_location, area_location
 
     def static_calculate_area_point(self, point_array, patch_size, level_downsamples, level_array=None, level=None):
+        # 从基于注视点的point_array生成基于patch的矩阵
+        # 生成数据分别为area_location单个元素和detect_location单个元素
+        # area_location单个元素结构为[注视点数量, x坐标, y坐标, level, patch_size]
+        # detect_location单个元素结构为[x坐标, y坐标, level, patch_size]
+        # area_location,detect_location是之后处理数据主要数据结构！！！
         if level_array is not None:
             use_array = True
             level_point_array = self.static_calculate_point_patch_level_array(point_array, level_downsamples,
@@ -582,6 +634,8 @@ class DatasetRegularProcess(GetDataset):
         return detect_location, area_location
 
     def static_point_limit(self, point, limit, index=0, equal=False):
+        # 一个比较函数
+        # 比较的是point的某一维度的坐标与limit（标量）的结果
         if equal is False:
             return point[index] > limit
         elif equal is True:
@@ -590,6 +644,10 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError("equal")
 
     def static_gain_point_out_of_limits(self, point_array, point, mode=0):  # mode=0为start point，mode=1为end point
+        # 对point array的每个point，检测是否在范围之外
+        # start_point和end_point区别是
+        # 如果某一维度小于start point即为False
+        # 如果某一维度大于end point即为False
         result = []
         if mode == 0:
             for i in range(len(point_array)):
@@ -616,7 +674,8 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError("in list compare")
         return list_result
 
-    def static_gain_point_out_of_area(self, point_array, start_point: list and tuple = (0, 0), area_size=None):
+    def static_gain_point_out_of_area(self, point_array, start_point: list or tuple = (0, 0), area_size=None):
+        # 检测是否超出由start point和area size指定的范围
         if area_size is None:
             result = self.static_gain_point_out_of_limits(point_array, start_point, 0)
         else:
@@ -627,6 +686,9 @@ class DatasetRegularProcess(GetDataset):
         return result
 
     def static_del_list_position_index(self, list_a: list, index_list: list, reverse=False):
+        # 根据index_list提供的索引删除list a里的元素
+        # reverse代表是否去反，结果是一样的，但实现细节有些许不同，可能导致速度差异
+        # 目前实现的检测类函数得到的结果都不调用该函数进行删除操作，如有兴趣，可以重写检测类函数使得符合该函数需要的结果，或许有助于提升速度
         if reverse is False:
             index_list.sort()
             for i in range(len(index_list)):
@@ -637,14 +699,31 @@ class DatasetRegularProcess(GetDataset):
                 list_a.pop(index_list[i])
         return list_a
 
-    def static_del_list_position_bool(self, list_a, bool_list):
+    def static_del_list_position_bool(self, list_a: list, bool_list):
+        # 根据bool_list删除list a里的元素
+        # 如果某位置bool_list是False，删除该位置的list a元素
+        # 目前实现的检测类函数得到的结果都需要调用该函数进行删除操作，如有兴趣，可以实现下基于index的
+        # 该函数功能可以实现像index版本的函数内的reverse控制，可能有助于速度
+        # 但因为实现细节稍微更复杂了点，暂未实现，如有兴趣，欢迎提供该版本
         for i in reversed(range(len(list_a))):
             if bool_list[i] is False:
                 list_a.pop(i)
         return list_a
 
+    def static_separate_list_position_bool(self, list_a: list, bool_list):
+        # 类似上面一个函数
+        # 该函数功能是根据bool list拆分成两个函数
+        list_b = []
+        for i in reversed(range(len(list_a))):
+            if bool_list[i] is False:
+                list_b.insert(0, list_a[i])
+                list_a.pop(i)
+        return list_a, list_b
+
     def static_calculate_particular_area_point(self, point_array, patch_size, level_downsamples, start_point=(0, 0),
                                                area_size=None, level_array=None, level=None):
+        # 与static_calculate_area_point类似
+        # 支持start_point, area_size
         result = None
         if start_point != (0, 0) or (start_point == (0, 0) and (area_size is not None)):
             result = self.static_gain_point_out_of_area(point_array, start_point, area_size)
@@ -673,6 +752,7 @@ class DatasetRegularProcess(GetDataset):
         return detect_location, area_location
 
     def detect_point_num(self, area_location=None, detect_location=None, threshold=0):
+        # 根据注视点数量阈值筛选区域
         if area_location is None:
             raise ExistError("area_location")
         if detect_location is None:
@@ -692,8 +772,10 @@ class DatasetRegularProcess(GetDataset):
                         after_processing_detect.append(detect_location[i])
             return area_location, detect_location
 
-    def detect_background_single(self, img, x, y,
-                                 reverse=True):  # reverse=True时, 说明img长宽是颠倒, 往往因为PIL图像与OPENCV图像（numpy array）转换的关系
+    def detect_background_single(self, img, x, y, level_img, level_downsamples, reverse=True):
+        # reverse=True时, 说明img长宽是颠倒, 往往因为PIL图像与OPENCV图像（numpy array）转换的关系
+        # 对单点检测是否不是背景
+        self.static_double_mul_div_int_mul_level([x, y], level_downsamples, level_img)
         if reverse is True:
             idx = y
             idy = x
@@ -711,16 +793,21 @@ class DatasetRegularProcess(GetDataset):
                 foreground = True
         return foreground
 
-    def detect_background(self, img, point_array, position=(1, 2), reverse=True):
+    def detect_background(self, img, point_array, level_img=None, level_downsamples=None, position=(1, 2),
+                          reverse=True):
+        # 对point array检测背景
         result = []
         for i in range(len(point_array)):
             foreground = self.detect_background_single(img, point_array[i][position[0]], point_array[i][position[1]],
-                                                       reverse)
+                                                       level_img, level_downsamples, reverse)
             result.append(foreground)
         return result
 
     def detect_edge_single(self, point=None, level=3, patch_size=None, level_downsamples=None, level_dimensions=None,
                            start_point=(0, 0), area_size=None, reformat=True):
+        # 对单点检测是否超出边界
+        # 该函数可能因耗时久以及之前操作隐含边界检测而不实用
+        # 但该函数优势是检测是准确严格的，之前操作隐含边界检测可能存在缺陷
         result = True
         if reformat is True:
             point = self.static_calculate_point_patch_level_start_point(point, level_downsamples, level, patch_size,
@@ -775,13 +862,24 @@ class DatasetRegularProcess(GetDataset):
                 point_array[i], end_point[1], index=1))
         return result
 
-    def detect_edge(self, point_array=None, level_array=None, level=3, patch_size=None, level_downsamples=None,
+    def detect_edge(self, point_array=None, level_array=None, level: type(None) or int = None, patch_size=None,
+                    level_downsamples=None,
                     level_dimensions=None, start_point=(0, 0), area_size=None, reformat=True):
-        # point array输入area_location时，reformat输入True，如果输入的是detect_location或者point array， reformat映射为False
+        # point array输入area_location时，reformat输入True，如果输入的是detect_location或者point array， reformat应设为False
+        # 存在level_array时, 使用level_array, 否则考虑使用level. level如为None, point_array类型为area_location或detect_location, 使用point_array自带的level
+        # 所以要使用area_location或detect_location带的level, 一定要将level设为None！！！
+        # 对point_array检测是否超出边界
         result = []
         if level_array is None:
-            level_array = [level for _ in range(len(point_array))]
+            if level is None and len(point_array[0]) > 2:
+                level_array = [j[-2] for j in range(point_array)]
+            elif level is not None:
+                level_array = [level for _ in range(len(point_array))]
+            else:
+                raise ExistError("level or level_array")
         for i in range(len(point_array)):
+            if patch_size is None:
+                patch_size = point_array[i][-1]
             if reformat is True:
                 result_single = self.detect_edge_single(point_array[i][1:3], level_array[i], patch_size,
                                                         level_downsamples,
@@ -865,6 +963,14 @@ class DatasetRegularProcess(GetDataset):
             return result, result_optional
         else:
             raise ModeError("in static_all_list")
+
+    def static_separate_all_list_location_type_2(self, all_list):
+        area_location = []
+        detect_location = []
+        for i in range(len(all_list)):
+            area_location.append(all_list[i][0])
+            detect_location.append(all_list[i][1])
+        return area_location, detect_location
 
     def static_del_exist_point_array(self, all_list, detect_location, all_type=0, location_type=0):
         if all_type == 1:
@@ -1103,8 +1209,8 @@ class DatasetRegularProcess(GetDataset):
         else:
             raise ExistError("location_type")
         if mode == 0:
-            distance = self.static_distance_euclidean_group(location_array,
-                                                            to_list=False)  # 输出是numpy ndarray， 如需要list, to list设为True或者使用默认
+            distance = self.static_distance_euclidean_group(location_array, to_list=False)
+            # 输出是numpy ndarray， 如需要list, to list设为True或者使用默认
         elif mode == 1:
             distance = self.static_distance_minkowsk_group(location_array, p, to_list=False)
         elif mode == 2:
@@ -1148,13 +1254,14 @@ class DatasetRegularProcess(GetDataset):
     def static_calculate_point_group_distance_mark(self, result_list, distance, to_list=True):
         result_list = np.array(result_list)
         distance = np.array(distance)
-        result = result_list * distance
+        result = result_list / distance
         if to_list is True:
             result.tolist()
         return result
 
-    def static_calculate_all_point_get_mark(self, final_list):
+    def static_calculate_all_point_get_mark(self, final_list, mode=0):
         result = [0 for _ in range(len(final_list))]
+        final_list = np.array(final_list)
         for i in range(len(final_list)):
             dynamic = 0
             for j in range(len(final_list)):
@@ -1162,24 +1269,94 @@ class DatasetRegularProcess(GetDataset):
                     dynamic += final_list[i, j]
                 elif i > j:
                     dynamic += final_list[j, i]
-            result[i] = dynamic
+            if mode == 0:
+                result[i] = dynamic
+            elif mode == 1:
+                result[i] = dynamic / (len(final_list) - 1)
         return result
 
     def static_zero_follow_mark(self, mark_result, num, reverse=False):
         mark_index = [[i, mark_result[i]] for i in range(len(mark_result))]
         mark_index = sorted(mark_index, key=lambda s: s[1], reverse=reverse)
+        if num > len(mark_index):
+            num = len(mark_index)
         index = [mark_index[j][0] for j in range(num)]
-        return index
+        return index, num
 
-    def static_random_list(self, zero_list, num):
+    def static_zero_random_list(self, zero_list, num):
         random_list = list(range(zero_list))
         random.shuffle(random_list)
         if num > 1:
+            if num > len(random_list):
+                num = len(random_list)
             index = random_list[:num]
         elif num == 1:
             index = [random_list[0]]
         else:
             raise OutBoundError("num " + str(num))
-        return index
+        return index, num
 
     def static_zero_list(self, zero_list, mode):
+
+    def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
+                       config):
+        if config.use_level_array is True:
+            level = None
+        elif config.use_level_array is False:
+            level_array = None
+        else:
+            raise ExistError("use_level_array" + str(config.use_level_array))
+        slide = self.read_slide(path)
+        level_downsamples = slide.level_downsamples
+        level_dimensions = slide.level_dimensions
+        img, level_img = self.read_image(slide, level_img)
+        img = self.static_thresh_patch(img, patch_size)
+        if config.use_start_point is True:
+            start_point = config.start_point
+        else:
+            start_point = (0, 0)
+        if config.use_area_size is True:
+            area_size = config.area_size
+        else:
+            area_size = None
+        if config.use_start_point is True or config.use_area_size is True:
+            detect_location, area_location = self.static_calculate_particular_area_point(point_array, patch_size,
+                                                                                         level_downsamples,
+                                                                                         start_point,
+                                                                                         area_size, level_array,
+                                                                                         level)
+        else:
+            detect_location, area_location = self.static_calculate_area_point(point_array, patch_size,
+                                                                              level_downsamples, level_array, level)
+        background_result = self.detect_background(img, area_location, level_img, level_downsamples)
+        area_location = self.static_del_list_position_bool(area_location, background_result)
+        detect_location = self.static_del_list_position_bool(detect_location, background_result)
+        area_location, detect_location = self.detect_point_num(area_location, detect_location, config.threshold)
+
+        edge_result = self.detect_edge(area_location, None, None, patch_size, level_downsamples, level_dimensions,
+                                       start_point, area_size)
+        area_location = self.static_del_list_position_bool(area_location, edge_result)
+        detect_location = self.static_del_list_position_bool(detect_location, edge_result)
+        detect_level, result_level = self.static_gain_level_positive(area_location, 2)
+        all_list = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 2)
+        all_area_location, all_detect_location = self.static_separate_all_list_location_type_2(all_list)
+        background_result = self.detect_background(img, all_area_location, level_img, level_downsamples)
+        all_area_location = self.static_del_list_position_bool(all_area_location, background_result)
+        all_detect_location = self.static_del_list_position_bool(all_detect_location, background_result)
+        edge_result = self.detect_edge(all_area_location, None, None, patch_size, level_downsamples, level_dimensions,
+                                       start_point, area_size)
+        all_area_location = self.static_del_list_position_bool(all_area_location, edge_result)
+        all_detect_location = self.static_del_list_position_bool(all_detect_location, edge_result)
+        all_area_center_location = self.static_start2center_list(all_area_location, level_downsamples)
+        all_distance = self.static_all_distance(all_area_center_location, location_type=(0, 1),
+                                                mode=config.distance_mode)
+        all_area_location_mark = self.static_transform_num2mark(all_area_location)
+        all_mark = self.static_calculate_point_group_mark(all_area_location_mark, config.group_mark_mode, False)
+        all_mark_distance = self.static_calculate_point_group_distance_mark(all_mark, all_distance, False)
+        all_point_mark = self.static_calculate_all_point_get_mark(all_mark_distance, config.point_mark_mode)
+        zero_result = self.static_del_exist_point_array(all_point_mark, area_location, 1, 1)
+        zero_area_location_mark, area_location_mark = self.static_separate_list_position_bool(all_point_mark,
+                                                                                              zero_result)
+
+
+    def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
