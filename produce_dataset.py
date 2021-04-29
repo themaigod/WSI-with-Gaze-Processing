@@ -1,4 +1,4 @@
-import dataProcesser as Da
+import tool.dataProcesser as Da
 import openslide
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ from scipy.stats import entropy
 from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoWriteError)
 from tool.manager import (Static, Manager, Inner, SingleManager)
 from tool.dataProcesser import all_reader
-from config import Config
+from config.config import Config
 
 
 # this file is going to produce dataset in different conditions.
@@ -394,7 +394,7 @@ class DatasetRegularProcess(GetDataset):
     def static_transform_to_1(self, array):  # 将矩阵转化为总和为1的矩阵，该步骤预设为支持数据集划分比例总和不为1的情况，例如，(7, 2, 1)
         result = []
         for i in range(len(array)):
-            result.append(array[r] / sum(array))
+            result.append(array[i] / sum(array))
         self.static.record("transform_to_1", self.record_status)
         return result
 
@@ -571,7 +571,7 @@ class DatasetRegularProcess(GetDataset):
         # 对储存成list的所有注视点坐标进行：同一patch上的注视点坐标转为patch的左上角坐标
         for i in range(len(level_array)):
             x[i] = self.static_double_mul_div_int_mul_level(x[i], level_downsamples, level_array[i], point_pixel)
-            x[i] = self.static_double_div_int_mul_patch(x[i], patch_size, level_downsamples, level)
+            x[i] = self.static_double_div_int_mul_patch(x[i], patch_size, level_downsamples, level_array[i])
         return x
 
     def static_transform_pixel(self, point, level_downsamples, patch_size, level, point_pixel=0):
@@ -859,7 +859,7 @@ class DatasetRegularProcess(GetDataset):
             else:
                 end_point[1] = end_point_reformat[1]
             result = not (self.static_point_limit(point, end_point[0], index=0) or self.static_point_limit(
-                point_array[i], end_point[1], index=1))
+                point, end_point[1], index=1))
         return result
 
     def detect_edge(self, point_array=None, level_array=None, level: type(None) or int = None, patch_size=None,
@@ -1142,7 +1142,7 @@ class DatasetRegularProcess(GetDataset):
         distance = np.zeros((len(point_group1), len(point_group2)))
         for i in range(len(point_group1)):
             for j in range(len(point_group2)):
-                distance[i, j] = distance_group[((len(point_group1) + len(point_group2)) * n) // 2 + j - i - 1]
+                distance[i, j] = distance_group[((len(point_group1) + len(point_group2)) * i) // 2 + j - i - 1]
         if to_list is True:
             distance = distance.tolist()
         return distance
@@ -1170,7 +1170,7 @@ class DatasetRegularProcess(GetDataset):
         if mode == 0:
             distance = self.static_distance_euclidean(point1, point2)
         elif mode == 2:
-            distance = self.static_distance_standardized_euclidean(point1, poin2)
+            distance = self.static_distance_standardized_euclidean(point1, point2)
         elif mode == 3:
             distance = self.static_distance_minkowsk(point1, point2, p)
         else:
