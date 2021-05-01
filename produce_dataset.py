@@ -411,8 +411,8 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("get_same_num", self.record_status)
         return same_value, same_location
 
-    def static_calculate_class_num(self, array: list,
-                                   total_num: int):  # 依照总数和比例矩阵划分得到每一类的数量，例如输入数据为（7，1.5，1.5）、100，得到的应该是[70, 15, 15]
+    def static_calculate_class_num(self, array: list, total_num: int):
+        # 依照总数和比例矩阵划分得到每一类的数量，例如输入数据为（7，1.5，1.5）、100，得到的应该是[70, 15, 15]
         # 该函数生成会符合以下规则：
         # 最重要：比例相同，数量相同
         # 其次：可能出现剩余, 剩余需尽可能少
@@ -460,8 +460,8 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_random_index", self.record_status)
         return random_list
 
-    def static_random_class_index(self, array: list,
-                                  total_num: int):  # 依照总数和比例矩阵划分得到属于每一类的索引值矩阵，例如输入数据为（1， 1）、6，得到的可能是[[6,1,3], [2,5,4]]
+    def static_random_class_index(self, array: list, total_num: int):
+        # 依照总数和比例矩阵划分得到属于每一类的索引值矩阵，例如输入数据为（1， 1）、6，得到的可能是[[6,1,3], [2,5,4]]
         # 调用了static_calculate_class_num和static_random_index
         use_list = []
         array_num = self.static_calculate_class_num(array, total_num)
@@ -663,6 +663,7 @@ class DatasetRegularProcess(GetDataset):
                         point_array[i], point[1], index=1)))
         else:
             raise ModeError("in limit")
+        return result
 
     def static_list_compare(self, list_a, list_b, mode=0):  # mode=0 list对位且运算， mode=1 list对位或运算
         list_result = []
@@ -707,20 +708,22 @@ class DatasetRegularProcess(GetDataset):
         # 目前实现的检测类函数得到的结果都需要调用该函数进行删除操作，如有兴趣，可以实现下基于index的
         # 该函数功能可以实现像index版本的函数内的reverse控制，可能有助于速度
         # 但因为实现细节稍微更复杂了点，暂未实现，如有兴趣，欢迎提供该版本
-        for i in reversed(range(len(list_a))):
+        list_b = list_a.copy()
+        for i in reversed(range(len(list_b))):
             if bool_list[i] is False:
-                list_a.pop(i)
-        return list_a
+                list_b.pop(i)
+        return list_b
 
     def static_separate_list_position_bool(self, list_a: list, bool_list):
         # 类似上面一个函数
         # 该函数功能是根据bool list拆分成两个函数
         list_b = []
-        for i in reversed(range(len(list_a))):
+        list_c = list_a.copy()
+        for i in reversed(range(len(list_c))):
             if bool_list[i] is False:
-                list_b.insert(0, list_a[i])
-                list_a.pop(i)
-        return list_a, list_b
+                list_b.insert(0, list_c[i])
+                list_c.pop(i)
+        return list_c, list_b
 
     def static_calculate_particular_area_point(self, point_array, patch_size, level_downsamples, start_point=(0, 0),
                                                area_size=None, level_array=None, level=None):
@@ -758,21 +761,29 @@ class DatasetRegularProcess(GetDataset):
         if area_location is None:
             raise ExistError("area_location")
         if detect_location is None:
-            if threshold != 0:
-                after_processing = []
-                for i in area_location:
-                    if i[0] >= threshold:
-                        after_processing.append(i)
-            return area_location
+            after_processing = self.static_filter_by_threshold_area(area_location, threshold)
+            return after_processing
         else:
-            if threshold != 0:
-                after_processing_area = []
-                after_processing_detect = []
-                for i in range(len(area_location)):
-                    if area_location[i][0] >= threshold:
-                        after_processing_area.append(area_location[i])
-                        after_processing_detect.append(detect_location[i])
-            return area_location, detect_location
+            after_processing_area, after_processing_detect = self.static_filiter_by_threshold_area_detect(area_location, detect_location, threshold)
+            return after_processing_area, after_processing_detect
+
+    def static_filiter_by_threshold_area_detect(self, area_location, detect_location, threshold):
+        after_processing_area = area_location.copy()
+        after_processing_detect = detect_location.copy()
+        if threshold != 0:
+            for i in range(len(area_location)):
+                if area_location[i][0] < threshold:
+                    after_processing_area.pop(i)
+                    after_processing_detect.pop(i)
+        return after_processing_area, after_processing_detect
+
+    def static_filter_by_threshold_area(self, area_location, threshold):
+        after_processing = area_location.copy()
+        if threshold != 0:
+            for i in reversed(range(len(area_location))):
+                if area_location[i][0] < threshold:
+                    after_processing.pop(i)
+        return after_processing
 
     def detect_background_single(self, img, x, y, level_img, level_downsamples, reverse=True):
         # reverse=True时, 说明img长宽是颠倒, 往往因为PIL图像与OPENCV图像（numpy array）转换的关系
@@ -919,7 +930,7 @@ class DatasetRegularProcess(GetDataset):
     def static_all_list(self, level_dimensions, detect_level, level_downsamples, patch_size, mode=0, location_type=0):
         # 根据detect_level提供的level获得在这些level上的patch，包括detect location[location_type = 0]、area location[location_type = 1]两种形式，注意area location
         # 形式的时候，注视点数量设为0。location_type = 2时提供一种不完备的形式, 即在代表每个patch元素中，同时储存detect location和area location
-        # 该location_type输出可以由static_separate_all_list_location_type_2转成正常的detect location和area location
+        # 该location_type输出可以由static_separate_all_list_location_type_2转成正常的detect location和area location\\该方案已废弃
         # 更好的解决方案可能是生成area location，再经由static_area_location2detect_location生成detect location
         # mode指导返回数据
         # mode=0，返回的形式是[list1, list2, list3...], list1是level=detect_level[0]时所有的patch，以此类推
@@ -1005,6 +1016,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_all_list_point_num_repair(self, all_list, area_location):
         # 将area location格式的all list的注视点数量根据area_location进行修正
+        all_list = all_list.copy()
         detect_area_location = [area_location[i][1:] for i in range(len(area_location))]
         for j in range(len(all_list)):
             if all_list[j][1:] in detect_area_location:
@@ -1095,18 +1107,22 @@ class DatasetRegularProcess(GetDataset):
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
         point_group2 = point_group1
-        vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        vector2 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        for i in range(len(point_group1)):
-            vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
-        for j in range(len(point_group1)):
-            vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
+        vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.linalg.norm(vector1 - vector2, ord=p, axis=1)
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group1)))
         if to_list is True:
             distance = distance.tolist()
         return distance
+
+    def static_create_group2vector(self, point_group1, point_group2):
+        vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
+        vector2 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
+        for i in range(len(point_group1)):
+            vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
+        for j in range(len(point_group1)):
+            vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
+        return vector1, vector2
 
     def static_distance_standardized_euclidean_group(self, point_group1, to_list=True, transform=True):
         # 标准化欧几里得距离 对一群点互相之间计算
@@ -1132,12 +1148,7 @@ class DatasetRegularProcess(GetDataset):
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
         point_group2 = point_group1
-        vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        vector2 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        for i in range(len(point_group1)):
-            vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
-        for j in range(len(point_group1)):
-            vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
+        vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.array(entropy(vector1, vector2, axis=1))
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group1)))
@@ -1160,12 +1171,7 @@ class DatasetRegularProcess(GetDataset):
         # 闵氏距离 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
-        vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        vector2 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        for i in range(len(point_group1)):
-            vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
-        for j in range(len(point_group1)):
-            vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
+        vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.linalg.norm(vector1 - vector2, ord=p, axis=1)
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group2)))
@@ -1190,12 +1196,7 @@ class DatasetRegularProcess(GetDataset):
         # kl散度 对两群点互相之间计算
         point_group1 = np.array(point_group1)
         point_group2 = np.array(point_group2)
-        vector1 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        vector2 = np.zeros((len(point_group1) * len(point_group1), point_group1.shape[1]))
-        for i in range(len(point_group1)):
-            vector1[i * len(point_group2): (i + 1) * len(point_group2), :] = point_group1[i]
-        for j in range(len(point_group1)):
-            vector2[j * len(point_group2): (j + 1) * len(point_group2), :] = point_group2[:]
+        vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.array(entropy(vector1, vector2))
         if transform is True:
             distance = distance.reshape((len(point_group1), len(point_group2)))
@@ -1387,6 +1388,7 @@ class DatasetRegularProcess(GetDataset):
         return marked_area_location
 
     def static_create_negative_marked_area_location(self, mark_result, zero_area_location: list):
+        zero_area_location = zero_area_location.copy()
         for i in range(len(zero_area_location)):
             zero_area_location[i].insert(0, mark_result[i])
         return zero_area_location
@@ -1421,6 +1423,8 @@ class DatasetRegularProcess(GetDataset):
             num = 0
         return num
 
+
+
     def static_zero_list(self, zero_list, result_level, num, ratio, mode):
         zero_level_result, zero_num_level, zero_level = self.static_zero_list2zero_list_level(zero_list)
         if num is not None:
@@ -1440,14 +1444,8 @@ class DatasetRegularProcess(GetDataset):
             now_num = self.static_get_num(num, index_num)
             result_level_num = self.static_get_num(result_level, index_result_level)
             if mode == 0:
-                if zero_num_level[i][1] < result_level_num + now_num:
-                    zero_true_num = zero_num_level[i][1]
-                    reduce_zero = result_level_num + now_num - zero_num_level[i][1]
-                else:
-                    zero_true_num = result_level_num + now_num
-                    reduce_zero = 0
-                result.append([level, zero_true_num])
-                result_reduce.append([level, reduce_zero])
+                self.static_get_zero_num_mode1(i, level, now_num, result, result_level_num, result_reduce,
+                                               zero_num_level)
             elif mode == 1:
                 if zero_num_level[i][1] < result_level_num + now_num:
                     zero_true_num = zero_num_level[i][1] * ratio
@@ -1458,13 +1456,41 @@ class DatasetRegularProcess(GetDataset):
                 result.append([level, zero_true_num])
                 result_reduce.append([level, reduce_zero])
             elif mode == 2:
-                
+                if zero_num_level[i][1] > (zero_num_level[i][1] * ratio) + now_num:
+                    zero_true_num = zero_num_level[i][1] * ratio + now_num
+                    reduce_zero = 0
+                else:
+                    zero_true_num = zero_num_level[i][1]
+                    reduce_zero = zero_num_level[i][1] * ratio + now_num - zero_num_level[i][1]
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
+            elif mode == 3:
+                if ratio is not None:
+                    if zero_num_level[i][1] > (now_num * ratio):
+                        zero_true_num = now_num * ratio
+                        reduce_zero = 0
+                    else:
+                        zero_true_num = zero_num_level[i][1]
+                        reduce_zero = (now_num * ratio) - zero_num_level[i][1]
+                else:
+                    if zero_num_level[i][1] > now_num:
+                        zero_true_num = now_num
+                        reduce_zero = 0
+                    else:
+                        zero_true_num = zero_num_level[i][1]
+                        reduce_zero = now_num - zero_num_level[i][1]
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
 
-
-
-
-
-
+    def static_get_zero_num_mode1(self, i, level, now_num, result, result_level_num, result_reduce, zero_num_level):
+        if zero_num_level[i][1] < result_level_num + now_num:
+            zero_true_num = zero_num_level[i][1]
+            reduce_zero = result_level_num + now_num - zero_num_level[i][1]
+        else:
+            zero_true_num = result_level_num + now_num
+            reduce_zero = 0
+        result.append([level, zero_true_num])
+        result_reduce.append([level, reduce_zero])
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        config):
