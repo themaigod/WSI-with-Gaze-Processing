@@ -1365,7 +1365,106 @@ class DatasetRegularProcess(GetDataset):
             raise OutBoundError("num " + str(num))
         return index, num
 
-    def static_zero_list(self, zero_list, mode):
+    def static_create_positive_marked_area_location(self, mark_result, all_area_location: list, area_location,
+                                                    location_type=(0, 0)):
+        marked_area_location = area_location.copy()
+        if location_type[1] == 0:
+            detect_location = [area_location[j][1:] for j in range(len(area_location))]
+        elif location_type[1] == 1:
+            detect_location = area_location.copy()
+        else:
+            raise ModeError(str(location_type[1]) + " in location_type[1]")
+        if location_type[0] == 0:
+            index = 1
+        elif location_type[1] == 1:
+            index = 0
+        else:
+            raise ModeError(str(location_type[0]) + " in location_type[0]")
+        for i in range(len(all_area_location)):
+            if all_area_location[i][index:] in detect_location:
+                get_index = detect_location.index(all_area_location[i][index:])
+                marked_area_location[get_index].insert(0, mark_result[i])
+        return marked_area_location
+
+    def static_create_negative_marked_area_location(self, mark_result, zero_area_location: list):
+        for i in range(len(zero_area_location)):
+            zero_area_location[i].insert(0, mark_result[i])
+        return zero_area_location
+
+    def static_zero_list2zero_list_level(self, zero_list):
+        result = []
+        detect_level = []
+        num_level = []
+        for i in range(len(zero_list)):
+            level = zero_list[i][-2]
+            if level not in detect_level:
+                detect_level.append(level)
+                result.append([i])
+                num_level.append([level, 1])
+            else:
+                index = detect_level.index(level)
+                result[index].append(i)
+                num_level[index][1] += 1
+        return result, num_level, detect_level
+
+    def static_get_num_index(self, detect_num, level):
+        if level in detect_num:
+            index = detect_num.index(level)
+        else:
+            index = None
+        return index
+
+    def static_get_num(self, num_level, index):
+        if index is not None:
+            num = num_level[index][1]
+        else:
+            num = 0
+        return num
+
+    def static_zero_list(self, zero_list, result_level, num, ratio, mode):
+        zero_level_result, zero_num_level, zero_level = self.static_zero_list2zero_list_level(zero_list)
+        if num is not None:
+            detect_num = [num[i][0] for i in range(len(num))]
+        else:
+            detect_num = [None]
+        if result_level is not None:
+            detect_result_level = [result_level[i][0] for i in range(len(result_level))]
+        else:
+            detect_result_level = [None]
+        result = []
+        result_reduce = []
+        for i in range(len(zero_level)):
+            level = zero_level[i]
+            index_result_level = self.static_get_num_index(detect_result_level, level)
+            index_num = self.static_get_num_index(detect_num, level)
+            now_num = self.static_get_num(num, index_num)
+            result_level_num = self.static_get_num(result_level, index_result_level)
+            if mode == 0:
+                if zero_num_level[i][1] < result_level_num + now_num:
+                    zero_true_num = zero_num_level[i][1]
+                    reduce_zero = result_level_num + now_num - zero_num_level[i][1]
+                else:
+                    zero_true_num = result_level_num + now_num
+                    reduce_zero = 0
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
+            elif mode == 1:
+                if zero_num_level[i][1] < result_level_num + now_num:
+                    zero_true_num = zero_num_level[i][1] * ratio
+                    reduce_zero = result_level_num + now_num - zero_num_level[i][1]
+                else:
+                    zero_true_num = (result_level_num + now_num) * ratio
+                    reduce_zero = 0
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
+            elif mode == 2:
+                
+
+
+
+
+
+
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        config):
@@ -1448,5 +1547,9 @@ class DatasetRegularProcess(GetDataset):
         zero_area_location_mark, area_location_mark = self.static_separate_list_position_bool(all_point_mark,
                                                                                               zero_result)
         # 对patch的重要性的矩阵拆分出分别属于1和0
+        zero_area_location, another_area_location = self.static_separate_list_position_bool(all_area_location, zero_result)
+        marked_zero_area_location = self.static_create_negative_marked_area_location(zero_area_location_mark, zero_area_location)
+        marked_area_location = self.static_create_positive_marked_area_location(area_location_mark, another_area_location, area_location, (0, 0))
+        self.get
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
