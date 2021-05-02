@@ -231,7 +231,7 @@ class GetInitDataset(GetDataset):
         self.repeat_add_mode = repeat_add_mode
         if self.init_status is True:
             print("starting reader...")
-            [name, point_array, level_array, path, max_num, image_label] = Da.all_reader(erc_path)  # 获取数据
+            [name, point_array, level_array, path, max_num, image_label] = all_reader(erc_path)  # 获取数据
             print("finish read point file")
             print("max num:{}".format(sum(max_num)))
             self.name_array = name
@@ -1435,7 +1435,7 @@ class DatasetRegularProcess(GetDataset):
             num = 0
         return num
 
-    def static_zero_list(self, zero_list, result_level, num, ratio, mode):
+    def static_zero_list_num(self, zero_list, result_level, num, ratio, mode):
         zero_level_result, zero_num_level, zero_level = self.static_zero_list2zero_list_level(zero_list)
         if num is not None:
             detect_num = [num[i][0] for i in range(len(num))]
@@ -1478,8 +1478,7 @@ class DatasetRegularProcess(GetDataset):
                 result_reduce.append([level, reduce_zero])
             else:
                 raise ModeError("in static_zero_list")
-        self.static_zero_random_list()
-        return result, result_reduce
+        return result, result_reduce, zero_level_result, zero_num_level, zero_level
 
     def static_get_zero_num_mode4(self, now_num, ratio, result_level_num, zero_num):
         if zero_num < result_level_num * ratio + now_num:
@@ -1534,8 +1533,23 @@ class DatasetRegularProcess(GetDataset):
             reduce_zero = 0
         return zero_true_num, reduce_zero
 
+    def static_get_zero_index(self, zero_num_result, zero_level_result, zero_level, mode=0, reverse=None):
+        for i in range(len(zero_level)):
+            if mode == 0:
+                index_list = self.static_zero_random_list(zero_level_result[i], zero_num_result[i][1])
+            elif mode == 1:
+                index_list = self.static_zero_follow_mark(zero_level_result[i], zero_num_result[i][1], reverse)
+
+
+
+
+    def static_get_zero(self, marked_zero_area_location, result_level, zero_num, config: Config):
+        zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_zero_list_num(
+            marked_zero_area_location, result_level, zero_num, config.zero_ratio, config.zero_num_mode)
+        self.static_get_zero_index()
+
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
-                       config):
+                       zero_num, config: Config):
         # 处理单张切片的样例流程，config引入对参数的设定
         if config.use_level_array is True:
             level = None  # 如果使用level_array，将level置None，以免使用
@@ -1622,6 +1636,6 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
-        self.get
+
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):

@@ -9,3 +9,6 @@ class Config:  # 初始化参数
         self.distance_mode = 0
         self.point_mark_mode = 0
         self.detect_edge = True
+        self.group_mark_mode = 1
+        self.zero_ratio = None
+        self.zero_num_mode = 4
