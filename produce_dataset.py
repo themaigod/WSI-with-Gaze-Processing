@@ -301,6 +301,11 @@ class GetInitDataset(GetDataset):
             check_list = []
             location_list = []
             u = 0
+            name_list = name_list.copy()
+            point_list = point_list.copy()
+            level_list = level_list.copy()
+            path_list = path_list.copy()
+            image_label = image_label.copy()
             for o in range(len(name_list)):
                 o = o - u
                 if path_list[o] not in check_list:
@@ -571,6 +576,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_calculate_point_patch_level_array(self, x, level_downsamples, level_array, patch_size, point_pixel=0):
         # 对储存成list的所有注视点坐标进行：同一patch上的注视点坐标转为patch的左上角坐标
+        x = x.copy()
         for i in range(len(level_array)):
             x[i] = self.static_double_mul_div_int_mul_level(x[i], level_downsamples, level_array[i], point_pixel)
             x[i] = self.static_double_div_int_mul_patch(x[i], patch_size, level_downsamples, level_array[i])
@@ -600,6 +606,8 @@ class DatasetRegularProcess(GetDataset):
         # area_location单个元素结构为[注视点数量, x坐标, y坐标, level, patch_size]
         # detect_location单个元素结构为[x坐标, y坐标, level, patch_size]
         # area_location,detect_location是之后处理数据主要数据结构！！！
+        area_location = area_location.copy()
+        detect_location = detect_location.copy()
         [id_x, id_y] = point
         if [id_x, id_y, level, patch_size] not in detect_location:
             number_point = self.static_detect_point_exist(level_point_array, id_x, id_y)
@@ -692,6 +700,7 @@ class DatasetRegularProcess(GetDataset):
         # 根据index_list提供的索引删除list a里的元素
         # reverse代表是否去反，结果是一样的，但实现细节有些许不同，可能导致速度差异
         # 目前实现的检测类函数得到的结果都不调用该函数进行删除操作，如有兴趣，可以重写检测类函数使得符合该函数需要的结果，或许有助于提升速度
+        list_a = list_a.copy()
         if reverse is False:
             index_list.sort()
             for i in range(len(index_list)):
