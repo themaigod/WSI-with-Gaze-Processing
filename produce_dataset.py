@@ -148,7 +148,7 @@ class GetDataset:  # 标准父类
 
     def detect_background(self, img, point_array):  # 检测背景，使用请重写
         if img is None or point_array is None:
-            raise
+            raise ExistError("parameter in detect_background")
         self.record("detect_background", self.record_status)
 
     def detect_point_num(self):  # 检测区域内视点数量，判断是否需要被舍弃，使用请重写
@@ -375,7 +375,7 @@ class GetInitDataset(GetDataset):
         # static版本
         for v in range(len(level_array)):
             for w in range(len(level_array[v])):
-                self.re_level_single(level_array[v][w])
+                level_array[v][w] = self.re_level_single(level_array[v][w])
         self.level_manager.record("static_re_level", self.record_status)
         return level_array
 
@@ -385,7 +385,7 @@ class GetInitDataset(GetDataset):
         # inner版本
         for v in range(len(self.level_array)):
             for w in range(len(self.level_array[v])):
-                self.re_level_single(self.level_array[v][w])
+                self.level_array[v][w] = self.re_level_single(self.level_array[v][w])
         self.level_manager.record("inner_re_level", self.record_status)
 
 
@@ -773,7 +773,9 @@ class DatasetRegularProcess(GetDataset):
             after_processing = self.static_filter_by_threshold_area(area_location, threshold)
             return after_processing
         else:
-            after_processing_area, after_processing_detect = self.static_filiter_by_threshold_area_detect(area_location, detect_location, threshold)
+            after_processing_area, after_processing_detect = self.static_filiter_by_threshold_area_detect(area_location,
+                                                                                                          detect_location,
+                                                                                                          threshold)
             return after_processing_area, after_processing_detect
 
     def static_filiter_by_threshold_area_detect(self, area_location, detect_location, threshold):
@@ -1103,7 +1105,7 @@ class DatasetRegularProcess(GetDataset):
         # 欧几里得距离 对一群点互相之间计算
         # 输出shape = (len(point_group1), len(point_group1))
         point_group1 = np.array(point_group1)
-        point_group2 = point_group1
+        point_group2 = point_group1.copy()
         distance = np.reshape(np.sum(point_group1 ** 2, axis=1), (point_group1.shape[0], 1)) + np.sum(point_group2 ** 2,
                                                                                                       axis=1) - 2 * point_group1.dot(
             point_group2.T)
@@ -1115,7 +1117,7 @@ class DatasetRegularProcess(GetDataset):
         # 闵氏距离 对一群点互相之间计算
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
-        point_group2 = point_group1
+        point_group2 = point_group1.copy()
         vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.linalg.norm(vector1 - vector2, ord=p, axis=1)
         if transform is True:
@@ -1156,7 +1158,7 @@ class DatasetRegularProcess(GetDataset):
         # kl散度 对一群点互相之间计算
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
-        point_group2 = point_group1
+        point_group2 = point_group1.copy()
         vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.array(entropy(vector1, vector2, axis=1))
         if transform is True:
@@ -1289,6 +1291,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_transform_num2mark(self, area_location):
         # 对整个area_location都进行根据注视点数量转换成分值
+        area_location = area_location.copy()
         for i in range(len(area_location)):
             area_location[i][0] = self.static_transform_num2mark_single(area_location[i][0])
         return area_location
@@ -1432,8 +1435,6 @@ class DatasetRegularProcess(GetDataset):
             num = 0
         return num
 
-
-
     def static_zero_list(self, zero_list, result_level, num, ratio, mode):
         zero_level_result, zero_num_level, zero_level = self.static_zero_list2zero_list_level(zero_list)
         if num is not None:
@@ -1453,53 +1454,85 @@ class DatasetRegularProcess(GetDataset):
             now_num = self.static_get_num(num, index_num)
             result_level_num = self.static_get_num(result_level, index_result_level)
             if mode == 0:
-                self.static_get_zero_num_mode1(i, level, now_num, result, result_level_num, result_reduce,
-                                               zero_num_level)
+                zero_true_num, reduce_zero = self.static_get_zero_num_mode0(now_num, result_level_num,
+                                                                            zero_num_level[i][1])
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
             elif mode == 1:
-                if zero_num_level[i][1] < result_level_num + now_num:
-                    zero_true_num = zero_num_level[i][1] * ratio
-                    reduce_zero = result_level_num + now_num - zero_num_level[i][1]
-                else:
-                    zero_true_num = (result_level_num + now_num) * ratio
-                    reduce_zero = 0
+                reduce_zero, zero_true_num = self.static_get_zero_num_mode1(now_num, ratio, result_level_num,
+                                                                            zero_num_level[i][1])
                 result.append([level, zero_true_num])
                 result_reduce.append([level, reduce_zero])
             elif mode == 2:
-                if zero_num_level[i][1] > (zero_num_level[i][1] * ratio) + now_num:
-                    zero_true_num = zero_num_level[i][1] * ratio + now_num
-                    reduce_zero = 0
-                else:
-                    zero_true_num = zero_num_level[i][1]
-                    reduce_zero = zero_num_level[i][1] * ratio + now_num - zero_num_level[i][1]
+                reduce_zero, zero_true_num = self.static_get_zero_num_mode2(now_num, ratio, zero_num_level[i][1])
                 result.append([level, zero_true_num])
                 result_reduce.append([level, reduce_zero])
             elif mode == 3:
-                if ratio is not None:
-                    if zero_num_level[i][1] > (now_num * ratio):
-                        zero_true_num = now_num * ratio
-                        reduce_zero = 0
-                    else:
-                        zero_true_num = zero_num_level[i][1]
-                        reduce_zero = (now_num * ratio) - zero_num_level[i][1]
-                else:
-                    if zero_num_level[i][1] > now_num:
-                        zero_true_num = now_num
-                        reduce_zero = 0
-                    else:
-                        zero_true_num = zero_num_level[i][1]
-                        reduce_zero = now_num - zero_num_level[i][1]
+                reduce_zero, zero_true_num = self.static_get_zero_num_mode3(now_num, ratio, zero_num_level[i][1])
                 result.append([level, zero_true_num])
                 result_reduce.append([level, reduce_zero])
+            elif mode == 4:
+                reduce_zero, zero_true_num = self.static_get_zero_num_mode4(now_num, ratio, result_level_num,
+                                                                            zero_num_level[i][1])
+                result.append([level, zero_true_num])
+                result_reduce.append([level, reduce_zero])
+            else:
+                raise ModeError("in static_zero_list")
+        self.static_zero_random_list()
+        return result, result_reduce
 
-    def static_get_zero_num_mode1(self, i, level, now_num, result, result_level_num, result_reduce, zero_num_level):
-        if zero_num_level[i][1] < result_level_num + now_num:
-            zero_true_num = zero_num_level[i][1]
-            reduce_zero = result_level_num + now_num - zero_num_level[i][1]
+    def static_get_zero_num_mode4(self, now_num, ratio, result_level_num, zero_num):
+        if zero_num < result_level_num * ratio + now_num:
+            zero_true_num = zero_num
+            reduce_zero = result_level_num * ratio + now_num - zero_num
+        else:
+            zero_true_num = result_level_num * ratio + now_num
+            reduce_zero = 0
+        return reduce_zero, zero_true_num
+
+    def static_get_zero_num_mode3(self, now_num, ratio, zero_num):
+        if ratio is not None:
+            if zero_num > (now_num * ratio):
+                zero_true_num = now_num * ratio
+                reduce_zero = 0
+            else:
+                zero_true_num = zero_num
+                reduce_zero = (now_num * ratio) - zero_num
+        else:
+            if zero_num > now_num:
+                zero_true_num = now_num
+                reduce_zero = 0
+            else:
+                zero_true_num = zero_num
+                reduce_zero = now_num - zero_num
+        return reduce_zero, zero_true_num
+
+    def static_get_zero_num_mode2(self, now_num, ratio, zero_num):
+        if zero_num > (zero_num * ratio) + now_num:
+            zero_true_num = zero_num * ratio + now_num
+            reduce_zero = 0
+        else:
+            zero_true_num = zero_num
+            reduce_zero = zero_num * ratio + now_num - zero_num
+        return reduce_zero, zero_true_num
+
+    def static_get_zero_num_mode1(self, now_num, ratio, result_level_num, zero_num):
+        if zero_num < (result_level_num + now_num) * ratio:
+            zero_true_num = zero_num
+            reduce_zero = (result_level_num + now_num) * ratio - zero_num
+        else:
+            zero_true_num = (result_level_num + now_num) * ratio
+            reduce_zero = 0
+        return reduce_zero, zero_true_num
+
+    def static_get_zero_num_mode0(self, now_num, result_level_num, zero_num):
+        if zero_num < result_level_num + now_num:
+            zero_true_num = zero_num
+            reduce_zero = result_level_num + now_num - zero_num
         else:
             zero_true_num = result_level_num + now_num
             reduce_zero = 0
-        result.append([level, zero_true_num])
-        result_reduce.append([level, reduce_zero])
+        return zero_true_num, reduce_zero
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        config):
@@ -1582,9 +1615,13 @@ class DatasetRegularProcess(GetDataset):
         zero_area_location_mark, area_location_mark = self.static_separate_list_position_bool(all_point_mark,
                                                                                               zero_result)
         # 对patch的重要性的矩阵拆分出分别属于1和0
-        zero_area_location, another_area_location = self.static_separate_list_position_bool(all_area_location, zero_result)
-        marked_zero_area_location = self.static_create_negative_marked_area_location(zero_area_location_mark, zero_area_location)
-        marked_area_location = self.static_create_positive_marked_area_location(area_location_mark, another_area_location, area_location, (0, 0))
+        zero_area_location, another_area_location = self.static_separate_list_position_bool(all_area_location,
+                                                                                            zero_result)
+        marked_zero_area_location = self.static_create_negative_marked_area_location(zero_area_location_mark,
+                                                                                     zero_area_location)
+        marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
+                                                                                another_area_location, area_location,
+                                                                                (0, 0))
         self.get
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
