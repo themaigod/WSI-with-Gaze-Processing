@@ -139,9 +139,9 @@ class Point:
         self.exist_point_num = True  # 该location是否包括注视点数量
         self.separate_mark = False  # 是否将mark数量单独返回
         self.exist_mark = True  # 该location是否包括mark
-        self.get_index_range()  # 计算匹配的index_range
-        self.check_keep_type()  # 检查是否满足keep_type=1的条件
-        self.check_optional_operate()  # 检查是否满足optional_operate=False的条件
+        # self.get_index_range()  # 计算匹配的index_range
+        # self.check_keep_type()  # 检查是否满足keep_type=1的条件
+        # self.check_optional_operate()  # 检查是否满足optional_operate=False的条件
 
     def get_index_range(self):
         if self.location_type is not None:
@@ -184,7 +184,16 @@ class Point:
         else:
             self.optional_operate = False
 
-    def transform_detect_location(self, detect_location):
+    def check_is_array(self, is_array=None):
+        if is_array is not None:
+            if is_array != self.is_array:
+                self.is_array = is_array
+        self.get_index_range()  # 计算匹配的index_range
+        self.check_keep_type()  # 检查是否满足keep_type=1的条件
+        self.check_optional_operate()  # 检查是否满足optional_operate=False的条件
+
+    def transform_detect_location(self, detect_location, is_array=None):
+        self.check_is_array(is_array)
         separate_result = self.process_optional_operate(detect_location)
         detect_location = self.other2detect(detect_location)
         if separate_result is not None:

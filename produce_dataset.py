@@ -1083,7 +1083,7 @@ class DatasetRegularProcess(GetDataset):
     #     return label
     #  暂时废弃
 
-    def set_label(self, point=(), detect_location=()):
+    def set_label(self, point=(), detect_location=(), control: Control = None):
         # 依据是否包含在detect_location获得标签
         # detect_location一般是确认包含注视点的patch集合
         # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
@@ -1093,9 +1093,8 @@ class DatasetRegularProcess(GetDataset):
             is_point_array = True
         else:
             is_point_array = False
-        control = Control(is_point_array)
         detect_location = self.static_other_type2detect_location(detect_location, control)
-        point = self.static_point2detect_location(detect_location, control)
+        point = self.static_point2detect_location(detect_location, control, is_point_array)
         if is_point_array is True:
             result = [i in detect_location for i in point]
         else:
@@ -1106,8 +1105,8 @@ class DatasetRegularProcess(GetDataset):
         detect_location = control.detect_location.transform_detect_location(detect_location)
         return detect_location
 
-    def static_point2detect_location(self, detect_location, control: Control):
-        detect_location = control.point.transform_detect_location(detect_location)
+    def static_point2detect_location(self, detect_location, control: Control, is_point_array):
+        detect_location = control.point.transform_detect_location(detect_location, is_point_array)
         return detect_location
 
     def static_distance_euclidean(self, point1, point2):  # 欧氏距离 两点的计算
@@ -1675,8 +1674,10 @@ class DatasetRegularProcess(GetDataset):
         print(zero_num_result)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
-    def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
-                       zero_num, one_num, config: Config):
+    # def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
+    #                    zero_num, one_num, config: Config):
+    def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label,
+                       max_num, config: Config):
         """
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
@@ -1776,8 +1777,10 @@ class DatasetRegularProcess(GetDataset):
         # one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
         #     marked_area_location, result_level, one_num, config)
         # 准备更新到__getitem__
+        # single_result = (
+        #     marked_area_location, marked_zero_area_location, one_num, zero_num, result_level)
         single_result = (
-            marked_area_location, marked_zero_area_location, one_num, zero_num, result_level)
+            marked_area_location, marked_zero_area_location, result_level)
         return single_result
 
     def static_calculate_num(self, reduce_num, mode=0):
@@ -1821,40 +1824,44 @@ class DatasetRegularProcess(GetDataset):
         """
         use_list = self.static_random_class_index(config.class_ratio, len(name_array))
         result = []
-        class_one_num = []
-        class_zero_num = []
+        # class_one_num = []
+        # class_zero_num = []
         for index_use in range(len(use_list)):
             result_class = []
-            total_one_num = 0
-            total_zero_num = 0
-            zero_num = None
-            one_num = None
+            # total_one_num = 0
+            # total_zero_num = 0
+            # zero_num = None
+            # one_num = None
             for j in range(len(use_list[index_use])):
                 i = use_list[index_use][j]
                 print("index use: " + str(index_use + 1) + " now/total: " + str(j + 1) + "/" + str(
                     len(use_list[index_use])))
-                single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
-                                                                                                            name_array,
-                                                                                                            path,
-                                                                                                            point_array,
-                                                                                                            level_array,
-                                                                                                            image_label,
-                                                                                                            max_num,
-                                                                                                            one_num,
-                                                                                                            zero_num,
-                                                                                                            total_one_num,
-                                                                                                            total_zero_num,
-                                                                                                            config)
+                # single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
+                #                                                                                             name_array,
+                #                                                                                             path,
+                #                                                                                             point_array,
+                #                                                                                             level_array,
+                #                                                                                             image_label,
+                #                                                                                             max_num,
+                #                                                                                             one_num,
+                #                                                                                             zero_num,
+                #                                                                                             total_one_num,
+                #                                                                                             total_zero_num,
+                #                                                                                             config)
+                single_result = self.process_whole_single(i, name_array, path, point_array, level_array, image_label,
+                                                          max_num, config)
                 result_class.append([single_result, i, j])
             result.append(result_class)
-            class_one_num.append(total_one_num)
-            class_zero_num.append(total_zero_num)
+            # class_one_num.append(total_one_num)
+            # class_zero_num.append(total_zero_num)
         information = {'name': name_array, 'path': path, 'point': point_array, 'level': level_array,
                        'label': image_label, 'max_num': max_num, "use_list": use_list}
-        return information, result, class_one_num, class_zero_num
+        # return information, result, class_one_num, class_zero_num
+        return information, result
 
-    def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, one_num,
-                             zero_num, total_one_num, total_zero_num, config):
+    # def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, one_num,
+    #                          zero_num, total_one_num, total_zero_num, config):
+    def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, config):
         """
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
@@ -1863,13 +1870,13 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         """
         single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
-                                            config.level_img, config.patch_size, image_label[i], max_num[i],
-                                            zero_num, one_num, config)
-        total_one_num += self.static_sum_list_num(single_result[3])
-        total_zero_num += self.static_sum_list_num(single_result[3])
-        one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
-        zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
-        return single_result, total_one_num, total_zero_num, one_num, zero_num
+                                            config.level_img, config.patch_size, image_label[i], max_num[i], config)
+        # total_one_num += self.static_sum_list_num(single_result[3])
+        # total_zero_num += self.static_sum_list_num(single_result[3])
+        # one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
+        # zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
+        # return single_result, total_one_num, total_zero_num, one_num, zero_num
+        return single_result
 
     def read(self, read_direc: dict, mode=0):
         information = {}
