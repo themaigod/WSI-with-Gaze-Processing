@@ -12,3 +12,4 @@ class Config:  # 初始化参数
         self.group_mark_mode = 1
         self.zero_ratio = None
         self.zero_num_mode = 4
+        self.get_zero_index_mode = 0

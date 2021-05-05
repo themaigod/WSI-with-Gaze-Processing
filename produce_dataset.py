@@ -1533,23 +1533,110 @@ class DatasetRegularProcess(GetDataset):
             reduce_zero = 0
         return zero_true_num, reduce_zero
 
+    def static_one_list_num(self, one_list, num, ratio, mode):
+        level_result, num_level, one_level = self.static_zero_list2zero_list_level(one_list)
+        if num is not None:
+            detect_num = [num[i][0] for i in range(len(num))]
+        else:
+            detect_num = [None]
+        result = []
+        result_reduce = []
+        for i in range(len(one_level)):
+            level = one_level[i]
+            index_num = self.static_get_num_index(detect_num, level)
+            now_num = self.static_get_num(num, index_num)
+            result_level_num = num_level[i][1]
+            if mode == 0:
+                true_num, reduce_one = self.static_get_one_num_mode0(now_num, result_level_num)
+                result.append([level, true_num])
+                result_reduce.append([level, reduce_one])
+            elif mode == 1:
+                true_num, reduce_one = self.static_get_one_num_mode1(now_num, ratio, result_level_num)
+                result.append([level, true_num])
+                result_reduce.append([level, reduce_one])
+            elif mode == 2:
+                true_num, reduce_one = self.static_get_one_num_mode2(now_num, ratio, result_level_num)
+                result.append([level, true_num])
+                result_reduce.append([level, reduce_one])
+            elif mode == 3:
+                true_num, reduce_one = self.static_get_one_num_mode3(now_num, ratio, result_level_num)
+                result.append([level, true_num])
+                result_reduce.append([level, reduce_one])
+            else:
+                raise ModeError("in static_zero_list")
+        return result, result_reduce, level_result, num_level, one_level
+
+    def static_get_one_num_mode3(self, now_num, ratio, result_level_num):
+        if ratio is not None:
+            if result_level_num > (now_num * ratio):
+                true_num = now_num * ratio
+                reduce_one = 0
+            else:
+                true_num = result_level_num
+                reduce_one = (now_num * ratio) - result_level_num
+        else:
+            if result_level_num > now_num:
+                true_num = now_num
+                reduce_one = 0
+            else:
+                true_num = result_level_num
+                reduce_one = now_num - result_level_num
+        return true_num, reduce_one
+
+    def static_get_one_num_mode2(self, now_num, ratio, result_level_num):
+        if result_level_num > (result_level_num * ratio) + now_num:
+            true_num = result_level_num * ratio + now_num
+            reduce_one = 0
+        else:
+            true_num = result_level_num
+            reduce_one = result_level_num * ratio + now_num - result_level_num
+        return true_num, reduce_one
+
+    def static_get_one_num_mode1(self, now_num, ratio, result_level_num):
+        if result_level_num < (result_level_num + now_num) * ratio:
+            true_num = result_level_num
+            reduce_one = (result_level_num + now_num) * ratio - result_level_num
+        else:
+            true_num = (result_level_num + now_num) * ratio
+            reduce_one = 0
+        return true_num, reduce_one
+
+    def static_get_one_num_mode0(self, now_num, result_level_num):
+        true_num = result_level_num
+        reduce_one = now_num
+        return true_num, reduce_one
+
+
+
     def static_get_zero_index(self, zero_num_result, zero_level_result, zero_level, mode=0, reverse=None):
+        index_result = []
+        num_result = []
         for i in range(len(zero_level)):
             if mode == 0:
-                index_list = self.static_zero_random_list(zero_level_result[i], zero_num_result[i][1])
+                index_list, num = self.static_zero_random_list(zero_level_result[i], zero_num_result[i][1])
             elif mode == 1:
-                index_list = self.static_zero_follow_mark(zero_level_result[i], zero_num_result[i][1], reverse)
-
-
-
+                index_list, num = self.static_zero_follow_mark(zero_level_result[i], zero_num_result[i][1], reverse)
+            else:
+                raise ModeError(str(mode) + "in static_get_zero_index")
+            index_result.append(index_list)
+            num_result.append(num)
+        return index_result, num_result
 
     def static_get_zero(self, marked_zero_area_location, result_level, zero_num, config: Config):
         zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_zero_list_num(
             marked_zero_area_location, result_level, zero_num, config.zero_ratio, config.zero_num_mode)
-        self.static_get_zero_index()
+        index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level, config.get_zero_index_mode, reverse=False)
+        return zero_level_result, zero_result_reduce, index_result, num_result
+
+    def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
+        zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_zero_list_num(
+            marked_area_location, result_level, one_num, config.zero_ratio, config.zero_num_mode)
+        index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
+                                                              config.get_zero_index_mode, reverse=False)
+        return zero_level_result, zero_result_reduce, index_result, num_result
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
-                       zero_num, config: Config):
+                       zero_num, one_num, config: Config):
         # 处理单张切片的样例流程，config引入对参数的设定
         if config.use_level_array is True:
             level = None  # 如果使用level_array，将level置None，以免使用
@@ -1636,6 +1723,7 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
-
+        zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(marked_zero_area_location, result_level, zero_num, config)
+        one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(marked_area_location, result_level, one_num, config)
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
