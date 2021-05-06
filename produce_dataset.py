@@ -1,4 +1,3 @@
-import tool.dataProcesser as Da
 import openslide
 import cv2
 import numpy as np
@@ -1606,8 +1605,6 @@ class DatasetRegularProcess(GetDataset):
         reduce_one = now_num
         return true_num, reduce_one
 
-
-
     def static_get_zero_index(self, zero_num_result, zero_level_result, zero_level, mode=0, reverse=None):
         index_result = []
         num_result = []
@@ -1625,7 +1622,8 @@ class DatasetRegularProcess(GetDataset):
     def static_get_zero(self, marked_zero_area_location, result_level, zero_num, config: Config):
         zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_zero_list_num(
             marked_zero_area_location, result_level, zero_num, config.zero_ratio, config.zero_num_mode)
-        index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level, config.get_zero_index_mode, reverse=False)
+        index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
+                                                              config.get_zero_index_mode, reverse=False)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
@@ -1723,7 +1721,103 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
-        zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(marked_zero_area_location, result_level, zero_num, config)
-        one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(marked_area_location, result_level, one_num, config)
+        zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(
+            marked_zero_area_location, result_level, zero_num, config)
+        one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
+            marked_area_location, result_level, one_num, config)
+        single_result = (
+            one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
+            zero_result_reduce, zero_index_result, zero_num_result)
+        return single_result
 
-    def process(self, name_array=None, path=None, point_array=None, level_array=None, image_label=None, max_num=None):
+    def static_calculate_num(self, reduce_num, mode=0):
+        if mode == 0:
+            num = reduce_num
+        else:
+            raise ModeError(str(mode) + "in static_calculate_num")
+        return num
+
+    def static_sum_list_num(self, list_a):
+        all_item = []
+        def list_num(list_b):
+            for x in list_b:
+                if type(x) is not list:
+                    all_item.append(x)
+                else:
+                    list_num(x)
+            return sum(all_item)
+        return list_num(list_a)
+
+    def process(self, name_array=None, path=None, point_array=None, level_array=None, level=None, image_label=None,
+                max_num=None, config: Config = None):
+        zero_num = None
+        one_num = None
+        result_train = []
+        result_val = []
+        train_total_one_num = 0
+        train_total_zero_num = 0
+        val_total_one_num = 0
+        val_total_zero_num = 0
+        use_list = self.static_random_class_index(config.class_ratio, len(name_array))
+        for i in range(len(name_array)):
+            if i in use_list[0]:
+                single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
+                                                    config.level_img, config.patch_size, image_label[i], max_num[i],
+                                                    zero_num, one_num, config)
+                result_train.append(single_result)
+                train_total_one_num += self.static_sum_list_num(single_result[3])
+                train_total_zero_num += self.static_sum_list_num(single_result[3])
+                one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
+                zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
+            # elif i in use_list[1]:
+            #     single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i],
+            #                                         config.level,
+            #                                         config.level_img, config.patch_size, image_label[i], max_num[i],
+            #                                         zero_num, one_num, config)
+            #     result_train.append(single_result)
+            #     train_total_one_num += self.static_sum_list_num(single_result[3])
+            #     train_total_zero_num += self.static_sum_list_num(single_result[3])
+            #     one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
+            #     zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
+            elif i in use_list[2]:
+                pass
+            else:
+                raise OutBoundError(str(i) + "in process")
+        information = {'name': name_array, 'path': path, 'point': point_array, 'level': level_array,
+                       'label': image_label, 'max_num': max_num}
+        return information, result, total_one_num, total_zero_num
+
+    def read
+
+    def static_save_information_key(self, information, key, output_direc=None):
+        value = np.array(information[key])
+        if output_direc is not None:
+            path_name = os.path.join(output_direc, key + ".npy")
+        else:
+            path_name = key + ".npy"
+        np.save(path_name, value)
+
+    def static_save_information(self, information, output_direc=None):
+        for i in list(information.keys()):
+            self.static_save_information_key(information, i, output_direc)
+
+    def static_save_result(self, result, output_direc):
+        result = np.array(result)
+        if output_direc is not None:
+            path_name = os.path.join(output_direc, "patch" + ".npy")
+        else:
+            path_name = "patch" + ".npy"
+        np.save(path_name, result)
+
+    def static_read_save_patch(self):
+
+
+    def save(self, information: dict=None, result=None, output_direc=None, mode=0):
+        if mode == 0:
+            self.static_save_information(information, output_direc)
+            self.static_save_result(result, output_direc)
+        elif mode == 1:
+            self.static_save_information(information, output_direc)
+            self.static_save_result(result, output_direc)
+
+

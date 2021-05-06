@@ -13,3 +13,9 @@ class Config:  # 初始化参数
         self.zero_ratio = None
         self.zero_num_mode = 4
         self.get_zero_index_mode = 0
+        self.level = 3
+        self.level_img = 5
+        self.patch_size = 768
+        self.calculate_one_num_mode = 0
+        self.calculate_zero_num_mode = 0
+        self.class_ratio = (7, 1.5, 1.5)
