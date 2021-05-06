@@ -1748,6 +1748,9 @@ class DatasetRegularProcess(GetDataset):
             return sum(all_item)
         return list_num(list_a)
 
+    def static_get_class_index(self, index_use, use_list):
+
+
     def process(self, name_array=None, path=None, point_array=None, level_array=None, level=None, image_label=None,
                 max_num=None, config: Config = None):
         zero_num = None
@@ -1759,30 +1762,19 @@ class DatasetRegularProcess(GetDataset):
         val_total_one_num = 0
         val_total_zero_num = 0
         use_list = self.static_random_class_index(config.class_ratio, len(name_array))
-        for i in range(len(name_array)):
-            if i in use_list[0]:
+        for index_use in range(len(use_list)):
+            result_class = []
+            total_one_num = 0
+            total_zero_num = 0
+            for i in use_list[index_use]:
                 single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
                                                     config.level_img, config.patch_size, image_label[i], max_num[i],
                                                     zero_num, one_num, config)
-                result_train.append(single_result)
+                result_class.append(single_result)
                 train_total_one_num += self.static_sum_list_num(single_result[3])
                 train_total_zero_num += self.static_sum_list_num(single_result[3])
                 one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
                 zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
-            # elif i in use_list[1]:
-            #     single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i],
-            #                                         config.level,
-            #                                         config.level_img, config.patch_size, image_label[i], max_num[i],
-            #                                         zero_num, one_num, config)
-            #     result_train.append(single_result)
-            #     train_total_one_num += self.static_sum_list_num(single_result[3])
-            #     train_total_zero_num += self.static_sum_list_num(single_result[3])
-            #     one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
-            #     zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
-            elif i in use_list[2]:
-                pass
-            else:
-                raise OutBoundError(str(i) + "in process")
         information = {'name': name_array, 'path': path, 'point': point_array, 'level': level_array,
                        'label': image_label, 'max_num': max_num}
         return information, result, total_one_num, total_zero_num
@@ -1809,7 +1801,7 @@ class DatasetRegularProcess(GetDataset):
             path_name = "patch" + ".npy"
         np.save(path_name, result)
 
-    def static_read_save_patch(self):
+    def static_read_save_patch(self, result, information, output_direc):
 
 
     def save(self, information: dict=None, result=None, output_direc=None, mode=0):
