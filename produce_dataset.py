@@ -1739,6 +1739,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_sum_list_num(self, list_a):
         all_item = []
+
         def list_num(list_b):
             for x in list_b:
                 if type(x) is not list:
@@ -1746,15 +1747,17 @@ class DatasetRegularProcess(GetDataset):
                 else:
                     list_num(x)
             return sum(all_item)
+
         return list_num(list_a)
 
     def static_get_class_index(self, index_use, use_list):
-
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, level=None, image_label=None,
                 max_num=None, config: Config = None):
         use_list = self.static_random_class_index(config.class_ratio, len(name_array))
         result = []
+        class_one_num = []
+        class_zero_num = []
         for index_use in range(len(use_list)):
             result_class = []
             total_one_num = 0
@@ -1762,24 +1765,41 @@ class DatasetRegularProcess(GetDataset):
             zero_num = None
             one_num = None
             for i in use_list[index_use]:
-                single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
-                                                    config.level_img, config.patch_size, image_label[i], max_num[i],
-                                                    zero_num, one_num, config)
+                single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
+                                                                                                            name_array,
+                                                                                                            path,
+                                                                                                            point_array,
+                                                                                                            level_array,
+                                                                                                            image_label,
+                                                                                                            max_num,
+                                                                                                            one_num,
+                                                                                                            zero_num,
+                                                                                                            total_one_num,
+                                                                                                            total_zero_num,
+                                                                                                            config)
                 result_class.append(single_result)
-                total_one_num += self.static_sum_list_num(single_result[3])
-                total_zero_num += self.static_sum_list_num(single_result[3])
-                one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
-                zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
             result.append(result_class)
+            class_one_num.append(total_one_num)
+            class_zero_num.append(total_zero_num)
         information = {'name': name_array, 'path': path, 'point': point_array, 'level': level_array,
                        'label': image_label, 'max_num': max_num, "use_list": use_list}
-        return information, result, total_one_num, total_zero_num
+        return information, result, class_one_num, class_zero_num
+
+    def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, one_num,
+                             zero_num, total_one_num, total_zero_num, config):
+        single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
+                                            config.level_img, config.patch_size, image_label[i], max_num[i],
+                                            zero_num, one_num, config)
+        total_one_num += self.static_sum_list_num(single_result[3])
+        total_zero_num += self.static_sum_list_num(single_result[3])
+        one_num = self.static_calculate_num(single_result[1], config.calculate_one_num_mode)
+        zero_num = self.static_calculate_num(single_result[5], config.calculate_zero_num_mode)
+        return single_result, total_one_num, total_zero_num, one_num, zero_num
 
     def read(self, read_direc: dict, mode=0):
         information = {}
         for i in list(read_direc.keys()):
             value = np.array(read_direc[i])
-
 
     def static_save_information_key(self, information, key, output_direc=None):
         value = np.array(information[key])
@@ -1804,12 +1824,10 @@ class DatasetRegularProcess(GetDataset):
     def static_read_save_patch(self, result, information, output_direc):
 
 
-    def save(self, information: dict=None, result=None, output_direc=None, mode=0):
+    def save(self, information: dict = None, result=None, output_direc=None, mode=0):
         if mode == 0:
             self.static_save_information(information, output_direc)
             self.static_save_result(result, output_direc)
         elif mode == 1:
             self.static_save_information(information, output_direc)
             self.static_save_result(result, output_direc)
-
-
