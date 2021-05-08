@@ -956,7 +956,7 @@ class DatasetRegularProcess(GetDataset):
         result = []
         result_optional = []
         for i in range(len(detect_level)):
-            point = [level_dimensions[detect_level[i]][0] - 1, level_dimensions[detect_level[i]][0] - 1]
+            point = [level_dimensions[0][0] - 1, level_dimensions[0][1] - 1]
             point_now_level = self.static_double_mul_div_int_mul_level(point, level_downsamples, detect_level[i], 0)
             point_level_patch = self.static_mul_div(point_now_level, div=patch_size, as_int=True)
             point_now_level_patch = self.static_mul_div(point_level_patch, mul=patch_size)
@@ -1702,7 +1702,6 @@ class DatasetRegularProcess(GetDataset):
         if config.detect_edge is True:
             edge_result = self.detect_edge(all_area_location, None, None, patch_size, level_downsamples,
                                            level_dimensions, start_point, area_size)
-            print(sum(edge_result))
             all_area_location = self.static_del_list_position_bool(all_area_location, edge_result)
             all_detect_location = self.static_del_list_position_bool(all_detect_location, edge_result)
         all_area_center_location = self.static_start2center_list(all_area_location, level_downsamples)
