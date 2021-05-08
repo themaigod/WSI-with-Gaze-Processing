@@ -1,5 +1,5 @@
-from Error import (RegisterError, ModeError, ExistError, OutBoundError)
-from ClassSave import SingleClass
+from .Error import (RegisterError, ModeError, ExistError, OutBoundError)
+from .ClassSave import SingleClass
 
 
 class Manager:  # 标准管理器
@@ -275,9 +275,9 @@ class Inner(Manager):  # 对inner属性函数进行管理
 class SingleManager(Manager):
     # 如果有特殊想拆分开来的类别的函数，可使用该管理器，该类的manager_list初始化ClassSave.py里的SingleClass，将函数名和设置存于该对象
     def __init__(self, instance, manager_name):
-        super().__init__(instance)
         self.manager_list = SingleClass()
         self.manager_name = manager_name
+        super().__init__(instance)
 
     def register(self, func_name, func_type=0, input_mode=0):
         if func_name not in self.manager_list.func_name:

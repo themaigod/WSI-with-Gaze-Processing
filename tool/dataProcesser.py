@@ -1,4 +1,4 @@
-from recReader import *
+from .recReader import *
 from math import *
 from copy import *
 import numpy as np

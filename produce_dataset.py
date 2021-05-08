@@ -28,14 +28,14 @@ class GetDataset:  # 标准父类
         self.func_manager = Manager(self)  # 函数管理器
         self.static = Static(self)  # 静态函数管理器
         self.inner = Inner(self)  # 内部数据操作的函数的管理器
-        self.inner_register()  # 类内函数注册
         self.level_manager = SingleManager(self, "level")  # level操作相关函数管理
         self.data_manager = SingleManager(self, "data")  # data操作相关函数管理
         self.point_manager = SingleManager(self, "point")  # point操作相关函数管理
         self.repeat_manager = SingleManager(self, "repeat")  # 重复操作相关函数管理
         self.pixel_manager = SingleManager(self, "pixel")  # pixel操作相关函数管理
         self.zero_manager = SingleManager(self, "zero")  # 获取标签为0的数据相关函数管理
-        self.config = Config  # 导入config参数
+        self.inner_register()  # 类内函数注册
+        self.config = Config()  # 导入config参数
 
     def inner_register(self):  # 类内函数注册
         self.inner.register(self.__init__)
@@ -366,7 +366,7 @@ class GetInitDataset(GetDataset):
             open_slide_level = open_slide_level + 1
             times = times * 2
         self.level_manager.record("re_level_single", self.record_status)
-        return level
+        return level - 2
 
     def static_re_level(self, level_array):
         # 将储存的level转化为openslide的level
@@ -411,7 +411,7 @@ class DatasetRegularProcess(GetDataset):
             location = np.argwhere(array == array_no_repeat[i])
             if len(location) != 1:
                 same_value.append(array_no_repeat[i])
-                same_location.append(location)
+                same_location.append(location[0])
         self.static.record("get_same_num", self.record_status)
         return same_value, same_location
 
@@ -481,11 +481,13 @@ class DatasetRegularProcess(GetDataset):
     def read_slide(self, path):  # 根据路径得到slide
         return openslide.OpenSlide(path)
 
-    def read_image(self, slide=None, level=3):  # 读取特定level下的图像, 一般用于获得背景
+    def read_image(self, slide=None, level=3, transpose=False):  # 读取特定level下的图像, 一般用于获得背景
         if slide is None:
             raise ExistError("slide")
         [length_of_img, height_of_img] = slide.level_dimensions[level]
         img = np.array(slide.read_region([0, 0], level, [length_of_img, height_of_img]))[:, :, :3]
+        if transpose is False:
+            img = img.transpose((1, 0, 2))
         self.static.record("read_image", self.record_status)
         return img, level
 
@@ -798,7 +800,7 @@ class DatasetRegularProcess(GetDataset):
     def detect_background_single(self, img, x, y, level_img, level_downsamples, reverse=True):
         # reverse=True时, 说明img长宽是颠倒, 往往因为PIL图像与OPENCV图像（numpy array）转换的关系
         # 对单点检测是否不是背景
-        self.static_double_mul_div_int_mul_level([x, y], level_downsamples, level_img)
+        [x, y] = self.static_double_mul_div_int_mul_level([x, y], level_downsamples, level_img)
         if reverse is True:
             idx = y
             idy = x
@@ -837,10 +839,10 @@ class DatasetRegularProcess(GetDataset):
                                                                         start_point, 0)
         if start_point != (0, 0):
             if area_size is None:
-                end_point = [level_dimensions[level][0] - 1, level_dimensions[level][1] - 1]
+                end_point = [level_dimensions[0][0] - 1, level_dimensions[0][1] - 1]
             else:
                 end_point = [start_point[0] + area_size[0], start_point[1] + area_size[1]]
-                if end_point[0] >= level_downsamples[level][0] or end_point[1] >= level_downsamples[level][1]:
+                if end_point[0] >= level_downsamples[0][0] or end_point[1] >= level_downsamples[0][1]:
                     raise OutBoundError("area")
             end_point_reformat = self.static_calculate_point_patch_level_start_point(end_point, level_downsamples,
                                                                                      level, patch_size,
@@ -864,10 +866,10 @@ class DatasetRegularProcess(GetDataset):
         elif start_point == (0, 0):
             if area_size is not None:
                 end_point = [start_point[0] + area_size[0], start_point[1] + area_size[1]]
-                if end_point[0] >= level_downsamples[level][0] or end_point[1] >= level_downsamples[level][1]:
+                if end_point[0] >= level_downsamples[0][0] or end_point[1] >= level_downsamples[0][1]:
                     raise OutBoundError("area")
             else:
-                end_point = [level_dimensions[level][0] - 1, level_dimensions[level][1] - 1]
+                end_point = [level_dimensions[0][0] - 1, level_dimensions[0][1] - 1]
             end_point_reformat = self.static_calculate_point_patch_level_start_point(end_point, level_downsamples,
                                                                                      level, patch_size,
                                                                                      start_point, 0)
@@ -883,6 +885,9 @@ class DatasetRegularProcess(GetDataset):
                 end_point[1] = end_point_reformat[1]
             result = not (self.static_point_limit(point, end_point[0], index=0) or self.static_point_limit(
                 point, end_point[1], index=1))
+            if result is False:
+                print(self.static_point_limit(point, end_point[0], index=0))
+                print(self.static_point_limit(point, end_point[1], index=1))
         return result
 
     def detect_edge(self, point_array: list = None, level_array=None, level: type(None) or int = None, patch_size=None,
@@ -946,6 +951,8 @@ class DatasetRegularProcess(GetDataset):
         # mode=0，返回的形式是[list1, list2, list3...], list1是level=detect_level[0]时所有的patch，以此类推
         # mode=1，返回标准的location，如，[location1, location2, ...], 包含所有的patch
         # mode=2, 同时返回mode=0和mode=1的结果
+
+        # 存在问题
         result = []
         result_optional = []
         for i in range(len(detect_level)):
@@ -1103,7 +1110,7 @@ class DatasetRegularProcess(GetDataset):
     def static_distance_euclidean_group(self, point_group1, to_list=True):
         # 欧几里得距离 对一群点互相之间计算
         # 输出shape = (len(point_group1), len(point_group1))
-        point_group1 = np.array(point_group1)
+        point_group1 = np.array(point_group1, dtype=np.int64)
         point_group2 = point_group1.copy()
         distance = np.reshape(np.sum(point_group1 ** 2, axis=1), (point_group1.shape[0], 1)) + np.sum(point_group2 ** 2,
                                                                                                       axis=1) - 2 * point_group1.dot(
@@ -1355,7 +1362,7 @@ class DatasetRegularProcess(GetDataset):
         # 取前num个索引
         # 一般用于取negative标签（标签0）的样本的相关操作
         mark_index = [[i, mark_result[i]] for i in range(len(mark_result))]
-        mark_index = sorted(mark_index, key=lambda s: s[1], reverse=reverse)
+        mark_index = sorted(mark_index, key=lambda s: s[1][0], reverse=reverse)
         if num > len(mark_index):
             num = len(mark_index)
         index = [mark_index[j][0] for j in range(num)]
@@ -1365,7 +1372,7 @@ class DatasetRegularProcess(GetDataset):
         # 随机取索引
         # 取前num个索引
         # 一般用于取negative标签（标签0）的样本的相关操作
-        random_list = list(range(zero_list))
+        random_list = list(range(len(zero_list)))
         random.shuffle(random_list)
         if num > 1:
             if num > len(random_list):
@@ -1373,6 +1380,8 @@ class DatasetRegularProcess(GetDataset):
             index = random_list[:num]
         elif num == 1:
             index = [random_list[0]]
+        elif num == 0:
+            index = []
         else:
             raise OutBoundError("num " + str(num))
         return index, num
@@ -1412,11 +1421,11 @@ class DatasetRegularProcess(GetDataset):
             level = zero_list[i][-2]
             if level not in detect_level:
                 detect_level.append(level)
-                result.append([i])
+                result.append([zero_list[i]])
                 num_level.append([level, 1])
             else:
                 index = detect_level.index(level)
-                result[index].append(i)
+                result[index].append(zero_list[i])
                 num_level[index][1] += 1
         return result, num_level, detect_level
 
@@ -1453,7 +1462,7 @@ class DatasetRegularProcess(GetDataset):
             now_num = self.static_get_num(num, index_num)
             result_level_num = self.static_get_num(result_level, index_result_level)
             if mode == 0:
-                zero_true_num, reduce_zero = self.static_get_zero_num_mode0(now_num, result_level_num,
+                reduce_zero, zero_true_num = self.static_get_zero_num_mode0(now_num, result_level_num,
                                                                             zero_num_level[i][1])
                 result.append([level, zero_true_num])
                 result_reduce.append([level, reduce_zero])
@@ -1486,7 +1495,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             zero_true_num = result_level_num * ratio + now_num
             reduce_zero = 0
-        return reduce_zero, zero_true_num
+        return int(reduce_zero), int(zero_true_num)
 
     def static_get_zero_num_mode3(self, now_num, ratio, zero_num):
         if ratio is not None:
@@ -1503,7 +1512,7 @@ class DatasetRegularProcess(GetDataset):
             else:
                 zero_true_num = zero_num
                 reduce_zero = now_num - zero_num
-        return reduce_zero, zero_true_num
+        return int(reduce_zero), int(zero_true_num)
 
     def static_get_zero_num_mode2(self, now_num, ratio, zero_num):
         if zero_num > (zero_num * ratio) + now_num:
@@ -1512,7 +1521,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             zero_true_num = zero_num
             reduce_zero = zero_num * ratio + now_num - zero_num
-        return reduce_zero, zero_true_num
+        return int(reduce_zero), int(zero_true_num)
 
     def static_get_zero_num_mode1(self, now_num, ratio, result_level_num, zero_num):
         if zero_num < (result_level_num + now_num) * ratio:
@@ -1521,7 +1530,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             zero_true_num = (result_level_num + now_num) * ratio
             reduce_zero = 0
-        return reduce_zero, zero_true_num
+        return int(reduce_zero), int(zero_true_num)
 
     def static_get_zero_num_mode0(self, now_num, result_level_num, zero_num):
         if zero_num < result_level_num + now_num:
@@ -1530,7 +1539,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             zero_true_num = result_level_num + now_num
             reduce_zero = 0
-        return zero_true_num, reduce_zero
+        return int(reduce_zero), int(zero_true_num)
 
     def static_one_list_num(self, one_list, num, ratio, mode):
         level_result, num_level, one_level = self.static_zero_list2zero_list_level(one_list)
@@ -1580,7 +1589,7 @@ class DatasetRegularProcess(GetDataset):
             else:
                 true_num = result_level_num
                 reduce_one = now_num - result_level_num
-        return true_num, reduce_one
+        return int(true_num), int(reduce_one)
 
     def static_get_one_num_mode2(self, now_num, ratio, result_level_num):
         if result_level_num > (result_level_num * ratio) + now_num:
@@ -1589,7 +1598,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             true_num = result_level_num
             reduce_one = result_level_num * ratio + now_num - result_level_num
-        return true_num, reduce_one
+        return int(true_num), int(reduce_one)
 
     def static_get_one_num_mode1(self, now_num, ratio, result_level_num):
         if result_level_num < (result_level_num + now_num) * ratio:
@@ -1598,12 +1607,12 @@ class DatasetRegularProcess(GetDataset):
         else:
             true_num = (result_level_num + now_num) * ratio
             reduce_one = 0
-        return true_num, reduce_one
+        return int(true_num), int(reduce_one)
 
     def static_get_one_num_mode0(self, now_num, result_level_num):
         true_num = result_level_num
         reduce_one = now_num
-        return true_num, reduce_one
+        return int(true_num), int(reduce_one)
 
     def static_get_zero_index(self, zero_num_result, zero_level_result, zero_level, mode=0, reverse=None):
         index_result = []
@@ -1627,14 +1636,15 @@ class DatasetRegularProcess(GetDataset):
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
-        zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_zero_list_num(
-            marked_area_location, result_level, one_num, config.zero_ratio, config.zero_num_mode)
+        zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_one_list_num(
+            marked_area_location, one_num, config.one_ratio, config.one_num_mode)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        zero_num, one_num, config: Config):
+        print(path)
         # 处理单张切片的样例流程，config引入对参数的设定
         if config.use_level_array is True:
             level = None  # 如果使用level_array，将level置None，以免使用
@@ -1665,7 +1675,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             detect_location, area_location = self.static_calculate_area_point(point_array, patch_size,
                                                                               level_downsamples, level_array, level)
-        background_result = self.detect_background(img, area_location, level_img, level_downsamples)
+        background_result = self.detect_background(img, area_location, level_img, level_downsamples, reverse=False)
         # 检测是否有在背景上的patch
         area_location = self.static_del_list_position_bool(area_location, background_result)
         detect_location = self.static_del_list_position_bool(detect_location, background_result)
@@ -1684,7 +1694,7 @@ class DatasetRegularProcess(GetDataset):
         # 基于detect_level获得包含的level的所有patch
         # all_area_location, all_detect_location = self.static_separate_all_list_location_type_2(all_list)
         # 已使用新的解决方案
-        all_area_location = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 0, 0)
+        all_area_location = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 1, 0)
         all_detect_location = self.static_area_location2detect_location(all_area_location)
         background_result = self.detect_background(img, all_area_location, level_img, level_downsamples)
         all_area_location = self.static_del_list_position_bool(all_area_location, background_result)
@@ -1692,6 +1702,7 @@ class DatasetRegularProcess(GetDataset):
         if config.detect_edge is True:
             edge_result = self.detect_edge(all_area_location, None, None, patch_size, level_downsamples,
                                            level_dimensions, start_point, area_size)
+            print(sum(edge_result))
             all_area_location = self.static_del_list_position_bool(all_area_location, edge_result)
             all_detect_location = self.static_del_list_position_bool(all_detect_location, edge_result)
         all_area_center_location = self.static_start2center_list(all_area_location, level_downsamples)
@@ -1750,7 +1761,7 @@ class DatasetRegularProcess(GetDataset):
 
         return list_num(list_a)
 
-    def static_get_class_index(self, index_use, use_list):
+    # def static_get_class_index(self, index_use, use_list):
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, level=None, image_label=None,
                 max_num=None, config: Config = None):
@@ -1764,7 +1775,8 @@ class DatasetRegularProcess(GetDataset):
             total_zero_num = 0
             zero_num = None
             one_num = None
-            for i in use_list[index_use]:
+            for j in range(len(use_list[index_use])):
+                i = use_list[index_use][j]
                 single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
                                                                                                             name_array,
                                                                                                             path,
@@ -1777,7 +1789,7 @@ class DatasetRegularProcess(GetDataset):
                                                                                                             total_one_num,
                                                                                                             total_zero_num,
                                                                                                             config)
-                result_class.append(single_result)
+                result_class.append([single_result, i, j])
             result.append(result_class)
             class_one_num.append(total_one_num)
             class_zero_num.append(total_zero_num)
@@ -1821,8 +1833,26 @@ class DatasetRegularProcess(GetDataset):
             path_name = "patch" + ".npy"
         np.save(path_name, result)
 
-    def static_read_save_patch(self, result, information, output_direc):
+    def read_image_area(self, slide: openslide.OpenSlide = None, start_point=(0, 0), level=3, area_size=None,
+                        transpose=True):
+        if area_size is None:
+            [length_of_img, height_of_img] = slide.level_dimensions[level]
+            area_size = (length_of_img - start_point[0], height_of_img - start_point[1])
+        img = np.array(slide.read_region(start_point, level, area_size))
+        if transpose is False:
+            img = img.transpose((1, 0, 2))
+        return img
 
+    def static_read_save_patch(self, result, information: dict, class_one_num, class_zero_num, output_direc,
+                               class_name):
+        for index_use in range(len(information['use_list'])):
+            for i in range(len(information['use_list'][index_use])):
+                j = information['use_list'][index_use][i]
+                slide = self.read_slide(information['path'][j])
+                one_level_result = result[index_use][i][0][0]
+                one_index_reuslt = result[index_use][i][0][2]
+                for k in range(len()):
+                    self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
 
     def save(self, information: dict = None, result=None, output_direc=None, mode=0):
         if mode == 0:
@@ -1831,3 +1861,4 @@ class DatasetRegularProcess(GetDataset):
         elif mode == 1:
             self.static_save_information(information, output_direc)
             self.static_save_result(result, output_direc)
+
