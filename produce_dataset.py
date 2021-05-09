@@ -10,6 +10,9 @@ from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoW
 from tool.manager import (Static, Manager, Inner, SingleManager)
 from tool.dataProcesser import all_reader
 from config.config import Config
+import json
+import scipy.io
+import pickle
 
 
 # this file is going to produce dataset in different conditions.
@@ -366,7 +369,8 @@ class GetInitDataset(GetDataset):
             open_slide_level = open_slide_level + 1
             times = times * 2
         self.level_manager.record("re_level_single", self.record_status)
-        return level - 2
+        # return level - 2
+        return 1
 
     def static_re_level(self, level_array):
         # 将储存的level转化为openslide的level
@@ -1631,15 +1635,15 @@ class DatasetRegularProcess(GetDataset):
             marked_zero_area_location, result_level, zero_num, config.zero_ratio, config.zero_num_mode)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
+        print(zero_num_result)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
         zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_one_list_num(
             marked_area_location, one_num, config.one_ratio, config.one_num_mode)
-        print(zero_num_result)
-        print(zero_num_level)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
+        print(zero_num_result)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
@@ -1776,6 +1780,8 @@ class DatasetRegularProcess(GetDataset):
             one_num = None
             for j in range(len(use_list[index_use])):
                 i = use_list[index_use][j]
+                print("index use: " + str(index_use + 1) + " now/total: " + str(j + 1) + "/" + str(
+                    len(use_list[index_use])))
                 single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
                                                                                                             name_array,
                                                                                                             path,
@@ -1820,17 +1826,110 @@ class DatasetRegularProcess(GetDataset):
             path_name = key + ".npy"
         np.save(path_name, value)
 
-    def static_save_information(self, information, output_direc=None):
-        for i in list(information.keys()):
-            self.static_save_information_key(information, i, output_direc)
+    def static_save_information_json(self, information, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "information.json")
+        else:
+            path = "information.json"
+        with open(path, 'w') as f:
+            json.dump(information, f)
 
-    def static_save_result(self, result, output_direc):
+    def static_save_information_mat(self, information, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "information.mat")
+        else:
+            path = "information.mat"
+        scipy.io.savemat(path, mdict={'information': information})
+
+    def static_save_information_pickle(self, information, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "information.pkl")
+        else:
+            path = "information.pkl"
+        file = open(path, 'wb')
+        pickle.dump(information, file)
+
+    def static_save_information_numpy(self, information, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "information.npy")
+        else:
+            path = "information.npy"
+        information = np.array(information)
+        np.save(path, information)
+
+
+    def static_save_information(self, information, output_direc=None, config=None):
+        is_save = False
+        if config is not None:
+            if config.information_save == "json":
+                self.static_save_information_json(information, output_direc)
+                is_save = True
+            elif config.information_save == "mat":
+                self.static_save_information_mat(information, output_direc)
+                is_save = True
+            elif config.information_save == "numpy":
+                self.static_save_information_numpy(information, output_direc)
+                is_save = False
+            elif config.information_save == "pickle":
+                self.static_save_information_pickle(information, output_direc)
+                is_save = True
+            elif config.information_save == "key":
+                is_save = False
+            else:
+                is_save = False
+        if is_save is False:
+            for i in list(information.keys()):
+                self.static_save_information_key(information, i, output_direc)
+
+    def static_save_result(self, result, output_direc, config):
+        is_save = False
+        if config is not None:
+            if config.result_save == "json":
+                self.static_save_result_json(result, output_direc)
+                is_save = True
+            elif config.result_save == "mat":
+                self.static_save_result_mat(result, output_direc)
+                is_save = True
+            elif config.result_save == "numpy":
+                is_save = False
+            elif config.result_save == "pickle":
+                self.static_save_result_mat(result, output_direc)
+                is_save = True
+            else:
+                is_save = False
+        if is_save is False:
+            self.static_save_result_numpy(output_direc, result)
+
+    def static_save_result_numpy(self, output_direc, result):
         result = np.array(result)
         if output_direc is not None:
-            path_name = os.path.join(output_direc, "patch" + ".npy")
+            path = os.path.join(output_direc, "patch" + ".npy")
         else:
-            path_name = "patch" + ".npy"
-        np.save(path_name, result)
+            path = "patch" + ".npy"
+        np.save(path, result)
+
+    def static_save_result_json(self, result, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "patch" + ".npy")
+        else:
+            path = "patch" + ".npy"
+        with open(path, 'w') as f:
+            json.dump(result, f)
+
+    def static_save_result_mat(self, result, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "patch.mat")
+        else:
+            path = "patch.mat"
+        scipy.io.savemat(path, mdict={'result': result})
+
+    def static_save_result_pickle(self, result, output_direc=None):
+        if output_direc is not None:
+            path = os.path.join(output_direc, "patch.pkl")
+        else:
+            path = "patch.pkl"
+        file = open(path, 'wb')
+        pickle.dump(result, file)
 
     def read_image_area(self, slide: openslide.OpenSlide = None, start_point=(0, 0), level=3, area_size=None,
                         transpose=True):
@@ -1853,11 +1952,10 @@ class DatasetRegularProcess(GetDataset):
                 for k in range(len()):
                     self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
 
-    def save(self, information: dict = None, result=None, output_direc=None, mode=0):
+    def save(self, information: dict = None, result=None, output_direc=None, config=None, mode=0):
         if mode == 0:
-            self.static_save_information(information, output_direc)
-            self.static_save_result(result, output_direc)
+            self.static_save_information(information, output_direc, config)
+            self.static_save_result(result, output_direc, config)
         elif mode == 1:
             self.static_save_information(information, output_direc)
-            self.static_save_result(result, output_direc)
-
+            self.static_save_result(result, output_direc, config)

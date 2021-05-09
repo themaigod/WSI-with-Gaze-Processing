@@ -16,8 +16,14 @@ class Config:  # 初始化参数
         self.one_num_mode = 2
         self.get_zero_index_mode = 1
         self.level = 3
-        self.level_img = 3
+        self.level_img = 5
         self.patch_size = 768
         self.calculate_one_num_mode = 0
         self.calculate_zero_num_mode = 0
         self.class_ratio = (1, 1, 1)
+        self.image_path = r"D:\ajmq\data_no_process"
+        self.information_save = "json"
+        # 还支持"numpy" "mat" "pickle"(官方标准包）  "key" 代表按key分别按numpy储存 #如果存在不匹配的，按key储存
+        self.result_save = "json"
+        # 还支持"numpy" "mat" "pickle"(官方标准包， 该方法暂定储存类型为pkl，其实支持write接口的对象均可使用）
+        # 如果如果存在不匹配的，按numpy储存
