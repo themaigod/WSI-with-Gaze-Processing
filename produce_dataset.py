@@ -740,6 +740,7 @@ class DatasetRegularProcess(GetDataset):
         # 与static_calculate_area_point类似
         # 支持start_point, area_size
         result = None
+        point_array = point_array.copy()
         if start_point != (0, 0) or (start_point == (0, 0) and (area_size is not None)):
             result = self.static_gain_point_out_of_area(point_array, start_point, area_size)
             point_array = self.static_del_list_position_bool(point_array, result)
@@ -885,9 +886,6 @@ class DatasetRegularProcess(GetDataset):
                 end_point[1] = end_point_reformat[1]
             result = not (self.static_point_limit(point, end_point[0], index=0) or self.static_point_limit(
                 point, end_point[1], index=1))
-            if result is False:
-                print(self.static_point_limit(point, end_point[0], index=0))
-                print(self.static_point_limit(point, end_point[1], index=1))
         return result
 
     def detect_edge(self, point_array: list = None, level_array=None, level: type(None) or int = None, patch_size=None,
@@ -1638,6 +1636,8 @@ class DatasetRegularProcess(GetDataset):
     def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
         zero_num_result, zero_result_reduce, zero_level_result, zero_num_level, zero_level = self.static_one_list_num(
             marked_area_location, one_num, config.one_ratio, config.one_num_mode)
+        print(zero_num_result)
+        print(zero_num_level)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
         return zero_level_result, zero_result_reduce, index_result, num_result

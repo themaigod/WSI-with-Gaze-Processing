@@ -20,4 +20,4 @@ class Config:  # 初始化参数
         self.patch_size = 768
         self.calculate_one_num_mode = 0
         self.calculate_zero_num_mode = 0
-        self.class_ratio = (7, 1.5, 1.5)
+        self.class_ratio = (1, 1, 1)
