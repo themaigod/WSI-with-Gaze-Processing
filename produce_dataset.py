@@ -10,6 +10,7 @@ from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoW
 from tool.manager import (Static, Manager, Inner, SingleManager)
 from tool.dataProcesser import all_reader
 from config.config import Config
+from config.set_label import Control
 import json
 import scipy.io
 import pickle
@@ -1043,43 +1044,71 @@ class DatasetRegularProcess(GetDataset):
                 all_list[j][0] = area_location[index][0]
         return all_list
 
-    def set_label(self, x=None, y=None, level=None, patch_size=None, detect_location=None, location_type=0, mode=0):
+    # def set_label(self, x=None, y=None, level=None, patch_size=None, detect_location=None, location_type=0, mode=0):
+    #     # 依据是否包含在detect_location获得标签
+    #     # detect_location一般是确认包含注视点的patch集合
+    #     # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
+    #     if mode == 0:
+    #         point = x
+    #         if location_type == 1:
+    #             detect_location = [j[1:] for j in detect_location]
+    #     elif mode == 1:
+    #         point = x
+    #         if location_type == 0:
+    #             detect_location = [j[1:] for j in detect_location]
+    #         elif location_type == 1:
+    #             detect_location = [j[1:-1] for j in detect_location]
+    #     elif mode == 2:
+    #         if location_type == 1:
+    #             if patch_size is None:
+    #                 point = [x, y, level]
+    #                 detect_location = [j[1:-1] for j in detect_location]
+    #             else:
+    #                 point = [x, y, level, patch_size]
+    #                 detect_location = [j[1:] for j in detect_location]
+    #         elif location_type == 0:
+    #             if patch_size is None:
+    #                 point = [x, y, level]
+    #                 detect_location = [j[:-1] for j in detect_location]
+    #             else:
+    #                 point = [x, y, level, patch_size]
+    #         else:
+    #             raise ModeError("in location type")
+    #     else:
+    #         raise ModeError("in set label")
+    #     if point in detect_location:
+    #         label = 1
+    #     else:
+    #         label = 0
+    #     return label
+    #  暂时废弃
+
+    def set_label(self, point=(), detect_location=()):
         # 依据是否包含在detect_location获得标签
         # detect_location一般是确认包含注视点的patch集合
         # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
-        if mode == 0:
-            point = x
-            if location_type == 1:
-                detect_location = [j[1:] for j in detect_location]
-        elif mode == 1:
-            point = x
-            if location_type == 0:
-                detect_location = [j[1:] for j in detect_location]
-            elif location_type == 1:
-                detect_location = [j[1:-1] for j in detect_location]
-        elif mode == 2:
-            if location_type == 1:
-                if patch_size is None:
-                    point = [x, y, level]
-                    detect_location = [j[1:-1] for j in detect_location]
-                else:
-                    point = [x, y, level, patch_size]
-                    detect_location = [j[1:] for j in detect_location]
-            elif location_type == 0:
-                if patch_size is None:
-                    point = [x, y, level]
-                    detect_location = [j[:-1] for j in detect_location]
-                else:
-                    point = [x, y, level, patch_size]
-            else:
-                raise ModeError("in location type")
+        if len(point) == 0:
+            return None
+        if isinstance(point[0], list):
+            is_point_array = True
         else:
-            raise ModeError("in set label")
-        if point in detect_location:
-            label = 1
+            is_point_array = False
+        control = Control(is_point_array)
+        detect_location = self.static_other_type2detect_location(detect_location, control)
+        point = self.static_point2detect_location(detect_location, control)
+        if is_point_array is True:
+            result = [i in detect_location for i in point]
         else:
-            label = 0
-        return label
+            result = point in detect_location
+        return result
+
+    def static_other_type2detect_location(self, detect_location, control: Control):
+        detect_location = control.detect_location.transform_detect_location(detect_location)
+        return detect_location
+
+    def static_point2detect_location(self, detect_location, control: Control):
+        detect_location = control.point.transform_detect_location(detect_location)
+        return detect_location
 
     def static_distance_euclidean(self, point1, point2):  # 欧氏距离 两点的计算
         s = 0
@@ -1885,7 +1914,6 @@ class DatasetRegularProcess(GetDataset):
             path = "information.npy"
         information = np.array(information)
         np.save(path, information)
-
 
     def static_save_information(self, information, output_direc=None, config=None):
         is_save = False

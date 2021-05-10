@@ -17,7 +17,7 @@ class Config:  # 初始化参数
         self.get_zero_index_mode = 1
         self.level = 3
         self.level_img = 5
-        self.patch_size = 768
+        self.patch_size = 256
         self.calculate_one_num_mode = 0
         self.calculate_zero_num_mode = 0
         self.class_ratio = (1, 1, 1)

@@ -16,6 +16,15 @@ class ModeError(Exception):
         return "This mode " + self.msg + " is not exist"
 
 
+class TypeError(Exception):
+    def __init__(self, name=None):
+        super(TypeError, self).__init__()
+        self.msg = name
+
+    def __str__(self):
+        return "This type " + self.msg + " is not exist"
+
+
 class ExistError(Exception):
     def __init__(self, name=None):
         super(ExistError, self).__init__()
