@@ -1648,6 +1648,13 @@ class DatasetRegularProcess(GetDataset):
 
     def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
                        zero_num, one_num, config: Config):
+        """
+        single_result 结构：
+        # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
+        #     zero_result_reduce, zero_index_result, zero_num_result
+        结构更新为：
+        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        """
         print(path)
         # 处理单张切片的样例流程，config引入对参数的设定
         if config.use_level_array is True:
@@ -1735,13 +1742,13 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
-        zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(
-            marked_zero_area_location, result_level, zero_num, config)
-        one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
-            marked_area_location, result_level, one_num, config)
+        # zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(
+        #     marked_zero_area_location, result_level, zero_num, config)
+        # one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
+        #     marked_area_location, result_level, one_num, config)
+        # 准备更新到__getitem__
         single_result = (
-            one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
-            zero_result_reduce, zero_index_result, zero_num_result)
+            marked_area_location, marked_zero_area_location, one_num, zero_num, result_level)
         return single_result
 
     def static_calculate_num(self, reduce_num, mode=0):
@@ -1768,6 +1775,21 @@ class DatasetRegularProcess(GetDataset):
 
     def process(self, name_array=None, path=None, point_array=None, level_array=None, level=None, image_label=None,
                 max_num=None, config: Config = None):
+        """
+        result结构：
+        [class1, ... , class n]
+        class结构：
+        [single_result, i ,j]
+        single_result 结构：
+        # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
+        #     zero_result_reduce, zero_index_result, zero_num_result
+        结构更新为：
+        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        i:
+        使用切片的index
+        j:
+        使用切片在所属类的use_list的index
+        """
         use_list = self.static_random_class_index(config.class_ratio, len(name_array))
         result = []
         class_one_num = []
@@ -1804,6 +1826,13 @@ class DatasetRegularProcess(GetDataset):
 
     def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, one_num,
                              zero_num, total_one_num, total_zero_num, config):
+        """
+        single_result 结构：
+        # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
+        #     zero_result_reduce, zero_index_result, zero_num_result
+        结构更新为：
+        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        """
         single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
                                             config.level_img, config.patch_size, image_label[i], max_num[i],
                                             zero_num, one_num, config)
@@ -1953,9 +1982,13 @@ class DatasetRegularProcess(GetDataset):
                     self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
 
     def save(self, information: dict = None, result=None, output_direc=None, config=None, mode=0):
+        # 储存information result -- mode=0
+        # 本来mode=1 计划直接存图，现有计划可能暂不编写
         if mode == 0:
             self.static_save_information(information, output_direc, config)
             self.static_save_result(result, output_direc, config)
-        elif mode == 1:
-            self.static_save_information(information, output_direc)
-            self.static_save_result(result, output_direc, config)
+        # elif mode == 1:
+        #     self.static_save_information(information, output_direc)
+        #     self.static_save_result(result, output_direc, config)
+        else:
+            raise ModeError(str(mode) + " in save")
