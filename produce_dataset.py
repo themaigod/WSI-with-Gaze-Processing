@@ -1682,8 +1682,10 @@ class DatasetRegularProcess(GetDataset):
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
         #     zero_result_reduce, zero_index_result, zero_num_result
+        # 结构更新为：
+        # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
-        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        marked_area_location, marked_zero_area_location, result_level
         """
         print(path)
         # 处理单张切片的样例流程，config引入对参数的设定
@@ -1815,8 +1817,10 @@ class DatasetRegularProcess(GetDataset):
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
         #     zero_result_reduce, zero_index_result, zero_num_result
+        # 结构更新为：
+        # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
-        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        marked_area_location, marked_zero_area_location, result_level
         i:
         使用切片的index
         j:
@@ -1866,8 +1870,10 @@ class DatasetRegularProcess(GetDataset):
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
         #     zero_result_reduce, zero_index_result, zero_num_result
+        # 结构更新为：
+        # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
-        marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
+        marked_area_location, marked_zero_area_location, result_level
         """
         single_result = self.process_single(name_array[i], path[i], point_array[i], level_array[i], config.level,
                                             config.level_img, config.patch_size, image_label[i], max_num[i], config)
@@ -2015,6 +2021,19 @@ class DatasetRegularProcess(GetDataset):
                 one_index_reuslt = result[index_use][i][0][2]
                 for k in range(len()):
                     self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
+
+
+    def static_read_save_patch2(self, information, result):
+        for index_use in range(len(information['use_list'])):
+            for i in range(len(information['use_list'][index_use])):
+                j = information['use_list'][index_use][i]
+                slide = self.read_slide(information['path'][j])
+                self.process()
+                single_result = result[index_use][i][0]
+                if
+
+
+
 
     def save(self, information: dict = None, result=None, output_direc=None, config=None, mode=0):
         # 储存information result -- mode=0
