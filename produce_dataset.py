@@ -10,7 +10,8 @@ from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoW
 from tool.manager import (Static, Manager, Inner, SingleManager)
 from tool.dataProcesser import all_reader
 from config.config import Config
-from config.set_label import Control
+from config.set_label import (Control, DetectLocation, Point)
+from InitDataset.InitDataset import InitDataset
 import json
 import scipy.io
 import pickle
@@ -1083,7 +1084,7 @@ class DatasetRegularProcess(GetDataset):
     #     return label
     #  暂时废弃
 
-    def set_label(self, point=(), detect_location=(), control: Control = None):
+    def set_label(self, point=(), detect_location=(), control: Control = None, grid_size=None):
         # 依据是否包含在detect_location获得标签
         # detect_location一般是确认包含注视点的patch集合
         # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
@@ -1094,7 +1095,7 @@ class DatasetRegularProcess(GetDataset):
         else:
             is_point_array = False
         detect_location = self.static_other_type2detect_location(detect_location, control)
-        point = self.static_point2detect_location(detect_location, control, is_point_array)
+        point = self.static_point2detect_location(detect_location, control, is_point_array, grid_size)
         if is_point_array is True:
             result = [i in detect_location for i in point]
         else:
@@ -1105,8 +1106,8 @@ class DatasetRegularProcess(GetDataset):
         detect_location = control.detect_location.transform_detect_location(detect_location)
         return detect_location
 
-    def static_point2detect_location(self, detect_location, control: Control, is_point_array):
-        detect_location = control.point.transform_detect_location(detect_location, is_point_array)
+    def static_point2detect_location(self, detect_location, control: Control, is_point_array, grid_size):
+        detect_location = control.point.transform_detect_location(detect_location, is_point_array, grid_size)
         return detect_location
 
     def static_distance_euclidean(self, point1, point2):  # 欧氏距离 两点的计算
@@ -1681,11 +1682,17 @@ class DatasetRegularProcess(GetDataset):
         """
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
-        #     zero_result_reduce, zero_index_result, zero_num_result
+        #     zero_result_reduce, class_index_result, zero_num_result
         # 结构更新为：
         # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
         marked_area_location, marked_zero_area_location, result_level
+        marked_area_location结构：
+        [mark, point_num, x, y, level, patch_size]
+        result_level结构：
+        [level 1 num, ... , level n num]
+        level 1 num结构：
+        [level, num]
         """
         print(path)
         # 处理单张切片的样例流程，config引入对参数的设定
@@ -1774,7 +1781,7 @@ class DatasetRegularProcess(GetDataset):
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
-        # zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.static_get_zero(
+        # zero_level_result, zero_result_reduce, class_index_result, zero_num_result = self.static_get_zero(
         #     marked_zero_area_location, result_level, zero_num, config)
         # one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
         #     marked_area_location, result_level, one_num, config)
@@ -1813,10 +1820,12 @@ class DatasetRegularProcess(GetDataset):
         result结构：
         [class1, ... , class n]
         class结构：
+        [result1, ... , result n]
+        result结构：
         [single_result, i ,j]
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
-        #     zero_result_reduce, zero_index_result, zero_num_result
+        #     zero_result_reduce, class_index_result, zero_num_result
         # 结构更新为：
         # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
@@ -1869,7 +1878,7 @@ class DatasetRegularProcess(GetDataset):
         """
         single_result 结构：
         # one_level_result, one_result_reduce, one_index_result, one_num_result, zero_level_result,
-        #     zero_result_reduce, zero_index_result, zero_num_result
+        #     zero_result_reduce, class_index_result, zero_num_result
         # 结构更新为：
         # marked_area_location, marked_zero_area_location, one_num, zero_num, result_level
         结构更新为：
@@ -1980,9 +1989,9 @@ class DatasetRegularProcess(GetDataset):
 
     def static_save_result_json(self, result, output_direc=None):
         if output_direc is not None:
-            path = os.path.join(output_direc, "patch" + ".npy")
+            path = os.path.join(output_direc, "patch" + ".json")
         else:
-            path = "patch" + ".npy"
+            path = "patch" + ".json"
         with open(path, 'w') as f:
             json.dump(result, f)
 
@@ -2011,29 +2020,64 @@ class DatasetRegularProcess(GetDataset):
             img = img.transpose((1, 0, 2))
         return img
 
-    def static_read_save_patch(self, result, information: dict, class_one_num, class_zero_num, output_direc,
-                               class_name):
+    # def static_read_save_patch(self, result, information: dict, class_one_num, class_zero_num, output_direc,
+    #                            class_name):
+    #     for index_use in range(len(information['use_list'])):
+    #         for i in range(len(information['use_list'][index_use])):
+    #             j = information['use_list'][index_use][i]
+    #             slide = self.read_slide(information['path'][j])
+    #             one_level_result = result[index_use][i][0][0]
+    #             one_index_reuslt = result[index_use][i][0][2]
+    #             for k in range(len()):
+    #                 self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
+
+    def static_read_save_patch(self, information, result, config):
         for index_use in range(len(information['use_list'])):
             for i in range(len(information['use_list'][index_use])):
                 j = information['use_list'][index_use][i]
                 slide = self.read_slide(information['path'][j])
-                one_level_result = result[index_use][i][0][0]
-                one_index_reuslt = result[index_use][i][0][2]
-                for k in range(len()):
-                    self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
-
-
-    def static_read_save_patch2(self, information, result):
-        for index_use in range(len(information['use_list'])):
-            for i in range(len(information['use_list'][index_use])):
-                j = information['use_list'][index_use][i]
-                slide = self.read_slide(information['path'][j])
-                self.process()
+                name = information['name'][j]
                 single_result = result[index_use][i][0]
-                if
+                self.static_read_save_single_result_patch(single_result, slide, name, config)
 
+    def static_read_save_single_result_patch(self, single_result, slide, name, config):
+        # 目前仅支持储存marked_area_location类型patch的single_result
+        marked_area_location, marked_zero_area_location = single_result[:2]
+        transform_point = config.read_point
+        detect_location = transform_point.transform_detect_location(marked_area_location)
+        detect_zero_location = transform_point.transform_detect_location(marked_zero_area_location)
+        label = self.set_label(detect_location, detect_location, config.set_label_control, config.grid_size)
+        label_zero = self.set_label(detect_zero_location, detect_location, config.set_label_control, config.grid_size)
+        grid_num = (1 + config.grid_size[0] * 2) * (1 + config.grid_size[1] * 2)
+        for i in range(len(marked_area_location)):
+            self.staic_save_img_label(i, detect_location, grid_num, label, name, slide, config)
+        for j in range(len(marked_zero_area_location)):
+            self.staic_save_img_label(j, detect_zero_location, grid_num, label_zero, name, slide, config)
 
+    def staic_save_img_label(self, i, detect_location, grid_num, label, name, slide, config):
+        [x, y, level, patch_size] = detect_location[i]
+        idx = x - self.static_double_mul_div_int_mul_level(config.grid_size[0] * patch_size,
+                                                           slide.level_downsamples, 0, level)
+        idy = y - self.static_double_mul_div_int_mul_level(config.grid_size[1] * patch_size,
+                                                           slide.level_downsamples, 0, level)
+        x_len = patch_size * (1 + 2 * config.grid_size[0])
+        y_len = patch_size * (1 + 2 * config.grid_size[1])
+        img = self.read_image_area(slide, (idx, idy), level, (x_len, y_len), True)
+        self.static_save_img(img, config.save_output_direc, name, [x, y, level, patch_size])
+        self.static_save_label(label[i * grid_num: (i + 1) * grid_num], config.save_output_direc, name,
+                               [x, y, level, patch_size])
 
+    def static_save_img(self, img, output_direc, name, point):
+        name_true = name + "-{}-{}-{}-{}".format(point[0], point[1], point[2], point[3])
+        path = os.path.join(output_direc, name_true + ".png")
+        cv2.imwrite(path, img)
+
+    def static_save_label(self, label, output_direc, name, point):
+        name_true = name + "-{}-{}-{}-{}".format(point[0], point[1], point[2], point[3])
+        path = os.path.join(output_direc, name_true + ".json")
+        save_data = (point, label)
+        with open(path, 'w') as f:
+            json.dump(label, f)
 
     def save(self, information: dict = None, result=None, output_direc=None, config=None, mode=0):
         # 储存information result -- mode=0
@@ -2046,3 +2090,6 @@ class DatasetRegularProcess(GetDataset):
         #     self.static_save_result(result, output_direc, config)
         else:
             raise ModeError(str(mode) + " in save")
+
+    def produce_whole_dataset(self, information, result, result_level, config):
+        return InitDataset(information, result, result_level, config)

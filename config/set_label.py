@@ -192,14 +192,37 @@ class Point:
         self.check_keep_type()  # 检查是否满足keep_type=1的条件
         self.check_optional_operate()  # 检查是否满足optional_operate=False的条件
 
-    def transform_detect_location(self, detect_location, is_array=None):
+    def transform_detect_location(self, detect_location, is_array=None, grid_size=None):
         self.check_is_array(is_array)
         separate_result = self.process_optional_operate(detect_location)
         detect_location = self.other2detect(detect_location)
+        detect_location = self.grid_size_enlarge(detect_location, grid_size)
         if separate_result is not None:
             return detect_location, separate_result
         else:
             return detect_location
+
+    def grid_size_enlarge(self, detect_location, grid_size=None):
+        if grid_size is not None:
+            detect_location = detect_location.copy()
+            detect_location_new = []
+            if self.is_array is True:
+                for i in range(len(detect_location)):
+                    for j in range(-grid_size[0], grid_size[0] + 1):
+                        for k in range(-grid_size[1], grid_size[1] + 1):
+                            location = detect_location[i].copy()
+                            location[0] += j
+                            location[1] += k
+                            detect_location_new.append(location)
+            else:
+                for j in range(-grid_size[0], grid_size[0] + 1):
+                    for k in range(-grid_size[1], grid_size[1] + 1):
+                        detect_location_new_single = detect_location.copy()
+                        detect_location_new_single[0] += j
+                        detect_location_new_single[1] += k
+                        detect_location_new.append(detect_location_new_single)
+            detect_location = detect_location_new
+        return detect_location
 
     def process_optional_operate(self, detect_location):
         if self.optional_operate is not False:

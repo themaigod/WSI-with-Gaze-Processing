@@ -1,5 +1,9 @@
+from .set_label import (Control, DetectLocation, Point)
+
+
 class Config:  # 初始化参数
     def __init__(self):
+        self.grid_size = (1, 1)  # 上下及左右延长距离 例如（2，5）代表的大小为（1 + 2 * 2， 1 + 5 * 2）
         self.use_level_array = True
         self.use_start_point = False
         self.use_area_size = False
@@ -27,3 +31,10 @@ class Config:  # 初始化参数
         self.result_save = "json"
         # 还支持"numpy" "mat" "pickle"(官方标准包， 该方法暂定储存类型为pkl，其实支持write接口的对象均可使用）
         # 如果如果存在不匹配的，按numpy储存
+
+        self.read_point = Point(True)
+        self.read_point.keep_patch_size = True
+
+        self.set_label_control = Control()
+
+        self.save_output_direc = ""
