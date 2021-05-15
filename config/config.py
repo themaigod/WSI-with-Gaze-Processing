@@ -38,3 +38,7 @@ class Config:  # 初始化参数
         self.set_label_control = Control()
 
         self.save_output_direc = ""
+        self.save_mode = 0
+        self.is_save = False
+        self.read_direc = ""
+        self.read_mode = 0

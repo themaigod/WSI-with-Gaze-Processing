@@ -2091,5 +2091,5 @@ class DatasetRegularProcess(GetDataset):
         else:
             raise ModeError(str(mode) + " in save")
 
-    def produce_whole_dataset(self, information, result, result_level, config):
-        return InitDataset(information, result, result_level, config)
+    def produce_whole_dataset(self, information, result, config):
+        return InitDataset(information, result, config)

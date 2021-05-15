@@ -2,11 +2,10 @@ from produce_dataset import DatasetRegularProcess
 
 
 class InitDataset:
-    def __init__(self, information, result, result_level, config):
+    def __init__(self, information, result, config):
         self.operate = DatasetRegularProcess()
         self.information = information
         self.all_patch = result
-        self.result_level = result_level
         self.config = config
 
     def produce_dataset(self, index_use, one_num=None, zero_num=None):
@@ -20,11 +19,11 @@ class InitDataset:
             slide = self.operate.read_slide(self.information['path'][j])
             name = self.information['name'][j]
             single_result = self.all_patch[index_use][i][0]
-            marked_area_location, marked_zero_area_location = single_result[:2]
+            marked_area_location, marked_zero_area_location, result_level = single_result
             zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.operate.static_get_zero(
-                marked_zero_area_location, self.result_level, zero_num, self.config)
+                marked_zero_area_location, result_level, zero_num, self.config)
             one_level_result, one_result_reduce, one_index_result, one_num_result = self.operate.static_get_one(
-                marked_area_location, self.result_level, one_num, self.config)
+                marked_area_location, result_level, one_num, self.config)
             one_num_value = self.operate.static_sum_list_num(one_num_result)
             zero_num_value = self.operate.static_sum_list_num(zero_num_result)
             one_num_list.append(one_num_value)
@@ -62,6 +61,9 @@ class DatasetForLoader:
     def __getitem__(self, idx):
         one_or_zero, position, index = self.get_position_index(idx)
         slide, name, one_index_result, zero_index_result, one_level_result, zero_level_result = self.all_result[position]
+        index_position, index_index = self.get_index_in_index_result(index, one_or_zero, one_index_result, zero_index_result)
+        if one_or_zero == 1:
+
 
 
 
@@ -99,6 +101,7 @@ class DatasetForLoader:
             position, index_result = self.get_index_in_index_result_process(index, zero_index_result)
         else:
             position, index_result = self.get_index_in_index_result_process(index, one_index_result)
+        return position, index_result
 
     def get_index_in_index_result_process(self, index, class_index_result):
         position = -1
