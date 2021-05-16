@@ -42,3 +42,6 @@ class Config:  # 初始化参数
         self.is_save = False
         self.read_direc = ""
         self.read_mode = 0
+
+        self.set_label_in_dataset_for_loader_control = Control(False)
+        self.set_label_in_dataset_for_loader_control.detect_location.location_type = "area_location"
