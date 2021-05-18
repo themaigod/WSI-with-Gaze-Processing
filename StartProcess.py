@@ -12,7 +12,7 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
         self.inner_produce_dataset_flow()
         self.train_dataset = None
         self.val_dataset = None
-        self.inner_get_output_dataset()
+        # self.inner_get_output_dataset()
 
     def inner_process_flow(self):
         self.path = self.name2path_in_list(self.path, self.config.image_path)
@@ -28,14 +28,22 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
         self.dataset = self.produce_whole_dataset(self.information, self.result, self.config)
         return self.dataset
 
-    def inner_get_output_dataset(self):
-        self.train_dataset = self.dataset.produce_dataset(0, self.config.one_num, self.config.zero_num)
-        self.val_dataset = self.dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
-        return self.train_dataset, self.val_dataset
+    def inner_get_output_dataset(self, num=None):
+        if num is None:
+            self.train_dataset = self.dataset.produce_dataset(0, self.config.one_num, self.config.zero_num)
+            self.val_dataset = self.dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
+            return self.train_dataset, self.val_dataset
+        elif num == 0:
+            self.train_dataset = self.dataset.produce_dataset(0, self.config.one_num, self.config.zero_num)
+            return self.train_dataset
+        elif num == 1:
+            self.val_dataset = self.dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
+            return self.val_dataset
 
 
 if __name__ == '__main__':
     process_func = FullProcess(r"/home/omnisky/ajmq/process_operate_relate/point_test", init_status=True)
+    process_func.inner_get_output_dataset()
     train_loader = DataLoader(process_func.train_dataset, batch_size=10, num_workers=2, shuffle=True, drop_last=True)
     for step, (img, label, patch, position) in enumerate(train_loader):
         # print(img)

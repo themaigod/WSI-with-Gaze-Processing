@@ -25,7 +25,7 @@ class Config:  # 初始化参数
         self.level = 3
         self.level_img = 5
         self.patch_size = 256
-        self.class_ratio = (1, 1, 1)
+        self.class_ratio = (7, 1, 2)
 
         # 是否使用多进程
         self.multi_process = True
@@ -67,7 +67,7 @@ class Config:  # 初始化参数
         self.set_label_in_dataset_for_loader_control.point.exist_point_num = False
         self.set_label_in_dataset_for_loader_control.point.location_type = "detect_location"
         self.middle_value = 0.5
-        self.detect_surround = True
+        self.detect_surround = False
 
         # inner_get_output_dataset
         self.zero_num = None
