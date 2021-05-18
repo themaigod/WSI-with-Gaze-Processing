@@ -1,9 +1,9 @@
-from produce_dataset import DatasetRegularProcess
+import numpy as np
 
 
 class InitDataset:
-    def __init__(self, information, result, config):
-        self.operate = DatasetRegularProcess()
+    def __init__(self, information, result, config, instance):
+        self.operate = instance
         self.information = information
         self.all_patch = result
         self.config = config
@@ -44,14 +44,14 @@ class InitDataset:
             one_num = self.operate.static_calculate_num(one_result_reduce, self.config.calculate_one_num_mode)
             zero_num = self.operate.static_calculate_num(zero_result_reduce, self.config.calculate_zero_num_mode)
             result.append((slide, name, one_index_result, zero_index_result, one_level_result, zero_level_result))
-        DatasetForLoader(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self)
+        return DatasetForLoader(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self)
 
     def get_index(self, result, patch, position, index_use):
         # 该方案有点效率低下，主要因为level_area_location不能转化为area_location, 需要area_location转level_area_location时返回坐标关系才能直接映射
         # 所以这里直接输入patch，运用list的index的方法寻找坐标
         for i in range(len(result)):
             [slide_index, one_or_zero] = position[i]
-            index = self.all_patch[index_use][slide_index][0][int(1 - one_or_zero)].index(patch)
+            index = self.all_patch[index_use][slide_index][0][int(1 - one_or_zero)].index(patch[i])
             self.result_record[index_use][slide_index][int(1 - one_or_zero)][index].append(result[i])
 
 
@@ -96,11 +96,13 @@ class DatasetForLoader:
             slide.level_downsamples, 0, level)
         x_len = patch_size * (1 + 2 * self.base_dataset.config.grid_size[0])
         y_len = patch_size * (1 + 2 * self.base_dataset.config.grid_size[1])
-        img = self.base_dataset.operate.read_image_area(slide, (idx, idy), level, (x_len, y_len), True)
+        img = self.base_dataset.operate.read_image_area(slide, (int(idx), int(idy)), level, (int(x_len), int(y_len)),
+                                                        True)
         label = self.base_dataset.operate.set_label([x, y, level, patch_size], one_level_result,
+                                                    self.base_dataset.config,
                                                     self.base_dataset.config.set_label_in_dataset_for_loader_control,
-                                                    self.base_dataset.config.grid_size)
-        return img, label, patch, [position, one_or_zero]
+                                                    self.base_dataset.config.grid_size, slide.level_downsamples)
+        return img, np.array(label), np.array(patch), np.array([position, one_or_zero])
 
     def get_position_index(self, idx):
         position = -1
@@ -120,13 +122,13 @@ class DatasetForLoader:
             one_or_zero = 0
             for i in range(len(self.zero_num_add_list)):
                 if i == 0:
-                    if idx < self.one_num_add_list[i]:
+                    if idx - self.one_num < self.zero_num_add_list[i]:
                         position = i
                         index = idx - self.one_num
                 else:
-                    if self.one_num_add_list[i - 1] <= idx < self.one_num_add_list[i]:
+                    if self.zero_num_add_list[i - 1] <= idx - self.one_num < self.zero_num_add_list[i]:
                         position = i
-                        index = idx - self.one_num_add_list[i - 1] - self.one_num
+                        index = idx - self.zero_num_add_list[i - 1] - self.one_num
         return one_or_zero, position, index
 
     def get_index_in_index_result(self, index, one_or_zero, one_index_result, zero_index_result):

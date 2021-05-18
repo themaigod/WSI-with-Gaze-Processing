@@ -1,9 +1,12 @@
 import openslide
+from multiprocessing import Process, Pool
+import time
 import cv2
 import numpy as np
 import os
 import random
 import itertools
+import copy
 from scipy.spatial.distance import pdist
 from scipy.stats import entropy
 from tool.Error import (RegisterError, ModeError, ExistError, OutBoundError, NoWriteError)
@@ -16,8 +19,10 @@ import json
 import scipy.io
 import pickle
 
-
 # this file is going to produce dataset in different conditions.
+
+pre_time = None
+
 
 class GetDataset:  # 标准父类
     def __init__(self, record=True, func_mode=0):
@@ -305,11 +310,11 @@ class GetInitDataset(GetDataset):
             check_list = []
             location_list = []
             u = 0
-            name_list = name_list.copy()
-            point_list = point_list.copy()
-            level_list = level_list.copy()
-            path_list = path_list.copy()
-            image_label = image_label.copy()
+            name_list = copy.deepcopy(name_list)
+            point_list = copy.deepcopy(point_list)
+            level_list = copy.deepcopy(level_list)
+            path_list = copy.deepcopy(path_list)
+            image_label = copy.deepcopy(image_label)
             for o in range(len(name_list)):
                 o = o - u
                 if path_list[o] not in check_list:
@@ -484,8 +489,8 @@ class DatasetRegularProcess(GetDataset):
         self.static.record("static_random_class_index", self.record_status)
         return use_list
 
-    def read_slide(self, path):  # 根据路径得到slide
-        return openslide.OpenSlide(path)
+    def read_slide(self, path: str):  # 根据路径得到slide
+        return openslide.OpenSlide(path.encode('utf-8'))
 
     def read_image(self, slide=None, level=3, transpose=False):  # 读取特定level下的图像, 一般用于获得背景
         if slide is None:
@@ -583,7 +588,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_calculate_point_patch_level_array(self, x, level_downsamples, level_array, patch_size, point_pixel=0):
         # 对储存成list的所有注视点坐标进行：同一patch上的注视点坐标转为patch的左上角坐标
-        x = x.copy()
+        x = copy.deepcopy(x)
         for i in range(len(level_array)):
             x[i] = self.static_double_mul_div_int_mul_level(x[i], level_downsamples, level_array[i], point_pixel)
             x[i] = self.static_double_div_int_mul_patch(x[i], patch_size, level_downsamples, level_array[i])
@@ -613,8 +618,8 @@ class DatasetRegularProcess(GetDataset):
         # area_location单个元素结构为[注视点数量, x坐标, y坐标, level, patch_size]
         # detect_location单个元素结构为[x坐标, y坐标, level, patch_size]
         # area_location,detect_location是之后处理数据主要数据结构！！！
-        area_location = area_location.copy()
-        detect_location = detect_location.copy()
+        area_location = copy.deepcopy(area_location)
+        detect_location = copy.deepcopy(detect_location)
         [id_x, id_y] = point
         if [id_x, id_y, level, patch_size] not in detect_location:
             number_point = self.static_detect_point_exist(level_point_array, id_x, id_y)
@@ -707,7 +712,7 @@ class DatasetRegularProcess(GetDataset):
         # 根据index_list提供的索引删除list a里的元素
         # reverse代表是否去反，结果是一样的，但实现细节有些许不同，可能导致速度差异
         # 目前实现的检测类函数得到的结果都不调用该函数进行删除操作，如有兴趣，可以重写检测类函数使得符合该函数需要的结果，或许有助于提升速度
-        list_a = list_a.copy()
+        list_a = copy.deepcopy(list_a)
         if reverse is False:
             index_list.sort()
             for i in range(len(index_list)):
@@ -724,7 +729,7 @@ class DatasetRegularProcess(GetDataset):
         # 目前实现的检测类函数得到的结果都需要调用该函数进行删除操作，如有兴趣，可以实现下基于index的
         # 该函数功能可以实现像index版本的函数内的reverse控制，可能有助于速度
         # 但因为实现细节稍微更复杂了点，暂未实现，如有兴趣，欢迎提供该版本
-        list_b = list_a.copy()
+        list_b = copy.deepcopy(list_a)
         for i in reversed(range(len(list_b))):
             if bool_list[i] is False:
                 list_b.pop(i)
@@ -734,7 +739,7 @@ class DatasetRegularProcess(GetDataset):
         # 类似上面一个函数
         # 该函数功能是根据bool list拆分成两个函数
         list_b = []
-        list_c = list_a.copy()
+        list_c = copy.deepcopy(list_a)
         for i in reversed(range(len(list_c))):
             if bool_list[i] is False:
                 list_b.insert(0, list_c[i])
@@ -746,7 +751,7 @@ class DatasetRegularProcess(GetDataset):
         # 与static_calculate_area_point类似
         # 支持start_point, area_size
         result = None
-        point_array = point_array.copy()
+        point_array = copy.deepcopy(point_array)
         if start_point != (0, 0) or (start_point == (0, 0) and (area_size is not None)):
             result = self.static_gain_point_out_of_area(point_array, start_point, area_size)
             point_array = self.static_del_list_position_bool(point_array, result)
@@ -787,8 +792,8 @@ class DatasetRegularProcess(GetDataset):
             return after_processing_area, after_processing_detect
 
     def static_filiter_by_threshold_area_detect(self, area_location, detect_location, threshold):
-        after_processing_area = area_location.copy()
-        after_processing_detect = detect_location.copy()
+        after_processing_area = copy.deepcopy(area_location)
+        after_processing_detect = copy.deepcopy(detect_location)
         if threshold != 0:
             for i in range(len(area_location)):
                 if area_location[i][0] < threshold:
@@ -797,7 +802,7 @@ class DatasetRegularProcess(GetDataset):
         return after_processing_area, after_processing_detect
 
     def static_filter_by_threshold_area(self, area_location, threshold):
-        after_processing = area_location.copy()
+        after_processing = copy.deepcopy(area_location)
         if threshold != 0:
             for i in reversed(range(len(area_location))):
                 if area_location[i][0] < threshold:
@@ -1037,7 +1042,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_all_list_point_num_repair(self, all_list, area_location):
         # 将area location格式的all list的注视点数量根据area_location进行修正
-        all_list = all_list.copy()
+        all_list = copy.deepcopy(all_list)
         detect_area_location = [area_location[i][1:] for i in range(len(area_location))]
         for j in range(len(all_list)):
             if all_list[j][1:] in detect_area_location:
@@ -1084,10 +1089,12 @@ class DatasetRegularProcess(GetDataset):
     #     return label
     #  暂时废弃
 
-    def set_label(self, point=(), detect_location=(), control: Control = None, grid_size=None):
+    def set_label(self, point=(), detect_location=(), config=None, control: Control = None, grid_size=None, level_downsamples=None):
         # 依据是否包含在detect_location获得标签
         # detect_location一般是确认包含注视点的patch集合
         # 这样，1代表被注视过（或者说包含注视点），0则没被注视过
+        # grid_size仅适用于point结构以level，patch_size结尾
+        # config.detect_surround能指定搜索周围，并给于位于注视块周围未注视过的块config.middle_value的值
         if len(point) == 0:
             return None
         if isinstance(point[0], list):
@@ -1095,19 +1102,58 @@ class DatasetRegularProcess(GetDataset):
         else:
             is_point_array = False
         detect_location = self.static_other_type2detect_location(detect_location, control)
-        point = self.static_point2detect_location(detect_location, control, is_point_array, grid_size)
+        point = self.static_point2detect_location(point, control, is_point_array, grid_size, level_downsamples)
+        if level_downsamples is None:
+            level_downsamples = (1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0)
+        if grid_size is not None:
+            is_point_array = True
         if is_point_array is True:
             result = [i in detect_location for i in point]
+            if config is not None and config.detect_surround is True:
+                for m in range(len(point)):
+                    if result[m] is False:
+                        for j in range(-grid_size[0], grid_size[0] + 1):
+                            for k in range(-grid_size[1], grid_size[1] + 1):
+                                point_temp = copy.deepcopy(point[j])
+                                point_temp[0] += int(
+                                    j * point_temp[-1] * level_downsamples[point_temp[-2]] /
+                                    level_downsamples[0])
+                                point_temp[1] += int(
+                                    k * point_temp[-1] * level_downsamples[point_temp[-2]] /
+                                    level_downsamples[0])
+                                if point_temp in detect_location:
+                                    result[m] = config.middle_value
+                result = [float(n) for n in result]
+            else:
+                result = [int(n) for n in result]
         else:
             result = point in detect_location
+            if config is not None and config.detect_surround is True:
+                if result is False:
+                    for j in range(-grid_size[0], grid_size[0] + 1):
+                        for k in range(-grid_size[1], grid_size[1] + 1):
+                            point_temp = copy.deepcopy(point)
+                            point_temp[0] += int(
+                                j * point_temp[-1] * level_downsamples[point_temp[-2]] /
+                                level_downsamples[0])
+                            point_temp[1] += int(
+                                k * point_temp[-1] * level_downsamples[point_temp[-2]] /
+                                level_downsamples[0])
+                            if point_temp in detect_location:
+                                result = config.middle_value
+                result = float(result)
+            else:
+                result = int(result)
         return result
 
     def static_other_type2detect_location(self, detect_location, control: Control):
         detect_location = control.detect_location.transform_detect_location(detect_location)
         return detect_location
 
-    def static_point2detect_location(self, detect_location, control: Control, is_point_array, grid_size):
-        detect_location = control.point.transform_detect_location(detect_location, is_point_array, grid_size)
+    def static_point2detect_location(self, detect_location, control: Control, is_point_array, grid_size,
+                                     level_downsamples):
+        detect_location = control.point.transform_detect_location(detect_location, is_point_array, grid_size,
+                                                                  level_downsamples)
         return detect_location
 
     def static_distance_euclidean(self, point1, point2):  # 欧氏距离 两点的计算
@@ -1142,7 +1188,7 @@ class DatasetRegularProcess(GetDataset):
         # 欧几里得距离 对一群点互相之间计算
         # 输出shape = (len(point_group1), len(point_group1))
         point_group1 = np.array(point_group1, dtype=np.int64)
-        point_group2 = point_group1.copy()
+        point_group2 = copy.deepcopy(point_group1)
         distance = np.reshape(np.sum(point_group1 ** 2, axis=1), (point_group1.shape[0], 1)) + np.sum(point_group2 ** 2,
                                                                                                       axis=1) - 2 * point_group1.dot(
             point_group2.T)
@@ -1154,7 +1200,7 @@ class DatasetRegularProcess(GetDataset):
         # 闵氏距离 对一群点互相之间计算
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
-        point_group2 = point_group1.copy()
+        point_group2 = copy.deepcopy(point_group1)
         vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.linalg.norm(vector1 - vector2, ord=p, axis=1)
         if transform is True:
@@ -1195,7 +1241,7 @@ class DatasetRegularProcess(GetDataset):
         # kl散度 对一群点互相之间计算
         # transform之前，shape = len(point_group1) * len(point_group1)
         point_group1 = np.array(point_group1)
-        point_group2 = point_group1.copy()
+        point_group2 = copy.deepcopy(point_group1)
         vector1, vector2 = self.static_create_group2vector(point_group1, point_group2)
         distance = np.array(entropy(vector1, vector2, axis=1))
         if transform is True:
@@ -1272,7 +1318,7 @@ class DatasetRegularProcess(GetDataset):
         # detect_location位置同时支持area_location和detect_location
         # 转换detect_location中的坐标
         # 原先代表patch的坐标是左上角的位置，转换后是中心点
-        detect_location_result = detect_location.copy()
+        detect_location_result = copy.deepcopy(detect_location)
         for i in range(len(detect_location)):
             patch_size = detect_location[i][-1]
             level = detect_location[i][-2]
@@ -1328,7 +1374,7 @@ class DatasetRegularProcess(GetDataset):
 
     def static_transform_num2mark(self, area_location):
         # 对整个area_location都进行根据注视点数量转换成分值
-        area_location = area_location.copy()
+        area_location = copy.deepcopy(area_location)
         for i in range(len(area_location)):
             area_location[i][0] = self.static_transform_num2mark_single(area_location[i][0])
         return area_location
@@ -1419,11 +1465,11 @@ class DatasetRegularProcess(GetDataset):
 
     def static_create_positive_marked_area_location(self, mark_result, all_area_location: list, area_location,
                                                     location_type=(0, 0)):
-        marked_area_location = area_location.copy()
+        marked_area_location = copy.deepcopy(area_location)
         if location_type[1] == 0:
             detect_location = [area_location[j][1:] for j in range(len(area_location))]
         elif location_type[1] == 1:
-            detect_location = area_location.copy()
+            detect_location = copy.deepcopy(area_location)
         else:
             raise ModeError(str(location_type[1]) + " in location_type[1]")
         if location_type[0] == 0:
@@ -1439,7 +1485,7 @@ class DatasetRegularProcess(GetDataset):
         return marked_area_location
 
     def static_create_negative_marked_area_location(self, mark_result, zero_area_location: list):
-        zero_area_location = zero_area_location.copy()
+        zero_area_location = copy.deepcopy(zero_area_location)
         for i in range(len(zero_area_location)):
             zero_area_location[i].insert(0, mark_result[i])
         return zero_area_location
@@ -1746,7 +1792,7 @@ class DatasetRegularProcess(GetDataset):
         # 已使用新的解决方案
         all_area_location = self.static_all_list(level_dimensions, detect_level, level_downsamples, patch_size, 1, 0)
         all_detect_location = self.static_area_location2detect_location(all_area_location)
-        background_result = self.detect_background(img, all_area_location, level_img, level_downsamples)
+        background_result = self.detect_background(img, all_area_location, level_img, level_downsamples, reverse=False)
         all_area_location = self.static_del_list_position_bool(all_area_location, background_result)
         all_detect_location = self.static_del_list_position_bool(all_detect_location, background_result)
         if config.detect_edge is True:
@@ -1839,31 +1885,25 @@ class DatasetRegularProcess(GetDataset):
         result = []
         # class_one_num = []
         # class_zero_num = []
+        global pre_time
+        pre_time = time.time()
         for index_use in range(len(use_list)):
             result_class = []
             # total_one_num = 0
             # total_zero_num = 0
             # zero_num = None
             # one_num = None
-            for j in range(len(use_list[index_use])):
-                i = use_list[index_use][j]
-                print("index use: " + str(index_use + 1) + " now/total: " + str(j + 1) + "/" + str(
-                    len(use_list[index_use])))
-                # single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
-                #                                                                                             name_array,
-                #                                                                                             path,
-                #                                                                                             point_array,
-                #                                                                                             level_array,
-                #                                                                                             image_label,
-                #                                                                                             max_num,
-                #                                                                                             one_num,
-                #                                                                                             zero_num,
-                #                                                                                             total_one_num,
-                #                                                                                             total_zero_num,
-                #                                                                                             config)
-                single_result = self.process_whole_single(i, name_array, path, point_array, level_array, image_label,
-                                                          max_num, config)
-                result_class.append([single_result, i, j])
+            if self.config.multi_process is False:
+                for j in range(len(use_list[index_use])):
+                    self.process_single_multi(config, image_label, index_use, j, level_array, max_num, name_array, path,
+                                              point_array, use_list)
+            else:
+                input_parameter = []
+                for j in range(len(use_list[index_use])):
+                    input_parameter.append((config, image_label, index_use, j, level_array, max_num, name_array, path,
+                                            point_array, use_list))
+                pool = Pool(processes=self.config.multi_process_num)
+                result_class = pool.starmap(self.process_single_multi, input_parameter)
             result.append(result_class)
             # class_one_num.append(total_one_num)
             # class_zero_num.append(total_zero_num)
@@ -1871,6 +1911,31 @@ class DatasetRegularProcess(GetDataset):
                        'label': image_label, 'max_num': max_num, "use_list": use_list}
         # return information, result, class_one_num, class_zero_num
         return information, result
+
+    def process_single_multi(self, config, image_label, index_use, j, level_array, max_num, name_array, path,
+                             point_array, use_list):
+        i = use_list[index_use][j]
+        global pre_time
+        print("use time:" + str(time.time() - pre_time))
+        pre_time = time.time()
+        print("index use: " + str(index_use + 1) + " now/total: " + str(j + 1) + "/" + str(
+            len(use_list[index_use])))
+        # single_result, total_one_num, total_zero_num, one_num, zero_num = self.process_whole_single(i,
+        #                                                                                             name_array,
+        #                                                                                             path,
+        #                                                                                             point_array,
+        #                                                                                             level_array,
+        #                                                                                             image_label,
+        #                                                                                             max_num,
+        #                                                                                             one_num,
+        #                                                                                             zero_num,
+        #                                                                                             total_one_num,
+        #                                                                                             total_zero_num,
+        #                                                                                             config)
+        single_result = self.process_whole_single(i, name_array, path, point_array, level_array, image_label,
+                                                  max_num, config)
+        result = [single_result, i, j]
+        return result
 
     # def process_whole_single(self, i, name_array, path, point_array, level_array, image_label, max_num, one_num,
     #                          zero_num, total_one_num, total_zero_num, config):
@@ -2032,6 +2097,7 @@ class DatasetRegularProcess(GetDataset):
     #                 self.read_image_area(slide, (result[index_use][i][0]))  # 未完成
 
     def static_read_save_patch(self, information, result, config):
+        # 未经过检查，谨慎使用
         for index_use in range(len(information['use_list'])):
             for i in range(len(information['use_list'][index_use])):
                 j = information['use_list'][index_use][i]
@@ -2092,4 +2158,4 @@ class DatasetRegularProcess(GetDataset):
             raise ModeError(str(mode) + " in save")
 
     def produce_whole_dataset(self, information, result, config):
-        return InitDataset(information, result, config)
+        return InitDataset(information, result, config, self)

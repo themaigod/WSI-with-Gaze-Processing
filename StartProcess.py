@@ -1,4 +1,5 @@
 from produce_dataset import (GetInitDataset, DatasetRegularProcess)
+from torch.utils.data import DataLoader
 
 
 class FullProcess(GetInitDataset, DatasetRegularProcess):
@@ -7,7 +8,11 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
         if self.config.is_save is False:
             self.information, self.result = None, None
             self.inner_process_flow()
-
+        self.dataset = None
+        self.inner_produce_dataset_flow()
+        self.train_dataset = None
+        self.val_dataset = None
+        self.inner_get_output_dataset()
 
     def inner_process_flow(self):
         self.path = self.name2path_in_list(self.path, self.config.image_path)
@@ -20,13 +25,18 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
         # if self.config.is_save is not False:
         #     self.information, self.result = self.read(self.config.read_direc, self.config.read_mode)
         # read暂未实现
-        dataset = self.produce_whole_dataset(self.information, self.result, self.config)
-        train_dataset = dataset.produce_dataset(0, self.config.one_num, self.config.zero_num)
-        val_dataset = dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
-        return dataset, train_dataset, val_dataset
+        self.dataset = self.produce_whole_dataset(self.information, self.result, self.config)
+        return self.dataset
 
-
+    def inner_get_output_dataset(self):
+        self.train_dataset = self.dataset.produce_dataset(0, self.config.one_num, self.config.zero_num)
+        self.val_dataset = self.dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
+        return self.train_dataset, self.val_dataset
 
 
 if __name__ == '__main__':
-    process_func = FullProcess(r"D:\ajmq\point_cs", init_status=True)
+    process_func = FullProcess(r"/home/omnisky/ajmq/process_operate_relate/point_test", init_status=True)
+    train_loader = DataLoader(process_func.train_dataset, batch_size=10, num_workers=2, shuffle=True, drop_last=True)
+    for step, (img, label, patch, position) in enumerate(train_loader):
+        # print(img)
+        print(label)
