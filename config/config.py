@@ -21,7 +21,7 @@ class Config:  # 初始化参数
         self.one_ratio = 0.9
         self.zero_num_mode = 4
         self.one_num_mode = 2
-        self.get_zero_index_mode = 1
+        self.get_zero_index_mode = 0
         self.level = 3
         self.level_img = 5
         self.patch_size = 256
@@ -29,7 +29,7 @@ class Config:  # 初始化参数
 
         # 是否使用多进程
         self.multi_process = True
-        self.multi_process_num = 6
+        self.multi_process_num = 12
 
         #
         self.calculate_one_num_mode = 0
@@ -54,10 +54,10 @@ class Config:  # 初始化参数
         self.set_label_control = Control()
 
         # 是否保存设置
-        self.is_save = False  # 是否有保存
+        self.is_save = True  # 是否有保存
 
         # 读取设置，注：read函数暂未实现
-        self.read_direc = ""
+        self.read_direc = "/home/omnisky/ajmq/process_operate_relate/result"
         self.read_mode = 0
 
         # set_label使用设置
@@ -72,3 +72,6 @@ class Config:  # 初始化参数
         # inner_get_output_dataset
         self.zero_num = None
         self.one_num = None
+
+        # getitem
+        self.crop_size = 224
