@@ -1711,7 +1711,6 @@ class DatasetRegularProcess(GetDataset):
             marked_zero_area_location, result_level, zero_num, config.zero_ratio, config.zero_num_mode)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
-        print(zero_num_result)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     def static_get_one(self, marked_area_location, result_level, one_num, config: Config):
@@ -1719,7 +1718,6 @@ class DatasetRegularProcess(GetDataset):
             marked_area_location, one_num, config.one_ratio, config.one_num_mode)
         index_result, num_result = self.static_get_zero_index(zero_num_result, zero_level_result, zero_level,
                                                               config.get_zero_index_mode, reverse=False)
-        print(zero_num_result)
         return zero_level_result, zero_result_reduce, index_result, num_result
 
     # def process_single(self, name, path, point_array, level_array, level, level_img, patch_size, image_label, max_num,
