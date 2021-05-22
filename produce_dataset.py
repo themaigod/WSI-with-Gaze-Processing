@@ -1821,11 +1821,18 @@ class DatasetRegularProcess(GetDataset):
         # 对patch的重要性的矩阵拆分出分别属于1和0
         zero_area_location, another_area_location = self.static_separate_list_position_bool(all_area_location,
                                                                                             zero_result)
+        # 这里出现了一个奇怪的问题，就是all_area_location不能完全包含area_location包含的patch
+        # 该问题暂时没空查找具体原因，现用修复函数，修正下
+
         marked_zero_area_location = self.static_create_negative_marked_area_location(zero_area_location_mark,
                                                                                      zero_area_location)
         marked_area_location = self.static_create_positive_marked_area_location(area_location_mark,
                                                                                 another_area_location, area_location,
                                                                                 (0, 0))
+
+        for i in reversed(range(len(marked_area_location))):
+            if len(marked_area_location[i]) == 5:
+                marked_area_location.pop(i)
         # zero_level_result, zero_result_reduce, class_index_result, zero_num_result = self.static_get_zero(
         #     marked_zero_area_location, result_level, zero_num, config)
         # one_level_result, one_result_reduce, one_index_result, one_num_result = self.static_get_one(
@@ -1833,6 +1840,7 @@ class DatasetRegularProcess(GetDataset):
         # 准备更新到__getitem__
         # single_result = (
         #     marked_area_location, marked_zero_area_location, one_num, zero_num, result_level)
+
         single_result = (
             marked_area_location, marked_zero_area_location, result_level)
         return single_result

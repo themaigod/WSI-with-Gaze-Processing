@@ -115,20 +115,38 @@ class InitDataset:
                 config = self.config
             # 临时处理，暂时采用的方法，训练时依照mark选patch
 
-            zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.operate.static_get_zero(
-                marked_zero_area_location, result_level, zero_num, config)
-            one_level_result, one_result_reduce, one_index_result, one_num_result = self.operate.static_get_one(
-                marked_area_location, result_level, one_num, config)
+            # zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.operate.static_get_zero(
+            #     marked_zero_area_location, result_level, zero_num, config)
+            # one_level_result, one_result_reduce, one_index_result, one_num_result = self.operate.static_get_one(
+            #     marked_area_location, result_level, one_num, config)
+
+            zero_level_result, zero_num_level, zero_level = self.operate.static_zero_list2zero_list_level(
+                marked_zero_area_location)
+            one_level_result, one_num_level, one_level = self.operate.static_zero_list2zero_list_level(
+                marked_area_location)
+
+            # for p in range(len(marked_area_location)):
+            #     if len(marked_area_location[p]) == 5:
+            #         lo = marked_area_location[p]
+            #         print(marked_area_location[p])
+            # for p in range(len(marked_zero_area_location)):
+            #     if len(marked_zero_area_location[p]) == 5:
+            #         lo = marked_zero_area_location[p]
+            #         print(marked_zero_area_location[p])
+
+            one_index_result = [list(range(len(one_level_result[k]))) for k in range(len(one_level_result))]
+            zero_index_result = [list(range(len(zero_level_result[m]))) for m in range(len(zero_level_result))]
+            one_num_result = [len(one_index_result[n]) for n in range(len(one_index_result))]
+            zero_num_result = [len(zero_index_result[n]) for n in range(len(zero_index_result))]
+
             one_num_value = self.operate.static_sum_list_num(one_num_result)
             zero_num_value = self.operate.static_sum_list_num(zero_num_result)
             one_num_list.append(one_num_value)
             zero_num_list.append(zero_num_value)
             total_one_num += one_num_value
             total_zero_num += zero_num_value
-            one_num = self.operate.static_calculate_num(one_result_reduce, self.config.calculate_one_num_mode)
-            zero_num = self.operate.static_calculate_num(zero_result_reduce, self.config.calculate_zero_num_mode)
             result.append((self.information['path'][j], name, one_index_result, zero_index_result, one_level_result,
-                           zero_level_result))
+                           zero_level_result, i, j))
         return DatasetForLoaderMIL(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self)
 
     def produce_dataset_mil(self, index_use, top_k=5):
@@ -205,9 +223,9 @@ class InitDataset:
             [slide_index, one_or_zero] = position[i]
             index = self.all_patch[index_use][slide_index][0][int(1 - one_or_zero)].index(patch[i])
             try:
-                self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index][0](result[i])
+                self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index][0] = result[i]
             except:
-                self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index].append(result[i])
+                self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index].append(result[i][0])
 
 
 class DatasetForLoader:
@@ -239,7 +257,7 @@ class DatasetForLoader:
     def __getitem__(self, idx):
         one_or_zero, position, index = self.get_position_index(idx)
         slide_name, name, one_index_result, zero_index_result, one_level_result, zero_level_result, i, j = \
-        self.all_result[position]
+            self.all_result[position]
         slide = self.base_dataset.operate.read_slide(slide_name)
         index_position, index_index = self.get_index_in_index_result(index, one_or_zero, one_index_result,
                                                                      zero_index_result)
@@ -403,7 +421,7 @@ class DatasetForLoaderMIL:
     def __getitem__(self, idx):
         one_or_zero, position, index = self.get_position_index(idx)
         slide_name, name, one_index_result, zero_index_result, one_level_result, zero_level_result, i, j = \
-        self.all_result[position]
+            self.all_result[position]
         slide = self.base_dataset.operate.read_slide(slide_name)
         index_position, index_index = self.get_index_in_index_result(index, one_or_zero, one_index_result,
                                                                      zero_index_result)
@@ -413,7 +431,7 @@ class DatasetForLoaderMIL:
         else:
             true_index = zero_index_result[index_position][index_index]
             patch = zero_level_result[index_position][true_index]
-        [x, y, level, patch_size] = patch[2:]
+        [_, _, x, y, level, patch_size] = patch
         idx = x - self.base_dataset.operate.static_double_mul_div_int_mul_level(
             self.base_dataset.config.grid_size[0] * patch_size,
             slide.level_downsamples, 0, level)
@@ -474,7 +492,7 @@ class DatasetForLoaderMIL:
                 label_flat[idn] = label_grid[x_idx, y_idx]
                 idn += 1
         img_mil = img_flat[(len(label_flat) - 1) // 2]
-        label_mil = self.base_dataset.information['label'][j]
+        label_mil = np.array([np.float32(self.base_dataset.information['label'][j])])
         return img_flat, label_flat, img_mil, label_mil, np.array(patch), np.array([position, one_or_zero])
 
     def get_position_index(self, idx):
@@ -531,9 +549,9 @@ class DatasetForLoaderMIL:
         add_list = []
         for i in range(len(list_a)):
             if i == 0:
-                add_list.append(len(list_a))
+                add_list.append(len(list_a[i]))
             else:
-                add_list.append(len(list_a) + add_list[i - 1])
+                add_list.append(len(list_a[i]) + add_list[i - 1])
         return add_list
 
     def __len__(self):

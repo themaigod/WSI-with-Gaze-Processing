@@ -67,6 +67,19 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
             self.val_dataset = self.dataset.produce_dataset(1, self.config.one_num, self.config.zero_num)
             return self.val_dataset
 
+    def inner_get_output_mil_dataset(self, num=None):
+        # 暂行方案
+        if num is None:
+            time_start = time.time()
+            print("start build train total dataset")
+            self.train_dataset = self.dataset.produce_dataset_mil_total(0)
+            print("build train dataset time:" + str(time.time() - time_start))
+            print("start build val dataset")
+            time_start = time.time()
+            self.val_dataset = self.dataset.produce_dataset_mil_total(1)
+            print("build val dataset time:" + str(time.time() - time_start))
+            return self.train_dataset, self.val_dataset
+
 
 if __name__ == '__main__':
     process_func = FullProcess(r"/home/omnisky/ajmq/process_operate_relate/point", init_status=True)
