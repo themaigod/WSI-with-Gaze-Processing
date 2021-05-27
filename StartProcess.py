@@ -22,6 +22,7 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
         print("build base dataset time:" + str(time.time() - time_start))
         self.train_dataset = None
         self.val_dataset = None
+        self.test_dataset = None
         # self.inner_get_output_dataset()
 
     def inner_process_flow(self):
@@ -79,6 +80,12 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
             self.val_dataset = self.dataset.produce_dataset_mil_total(1)
             print("build val dataset time:" + str(time.time() - time_start))
             return self.train_dataset, self.val_dataset
+        elif num == 2:
+            time_start = time.time()
+            print("start build train total dataset")
+            self.test_dataset = self.dataset.produce_dataset_mil_total(2)
+            print("build train dataset time:" + str(time.time() - time_start))
+            return self.test_dataset
 
 
 if __name__ == '__main__':

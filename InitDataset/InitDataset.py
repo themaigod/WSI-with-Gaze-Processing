@@ -87,7 +87,7 @@ class InitDataset:
                 try:
                     mark = zero_record[k][0]
                 except:
-                    mark = 0
+                    mark = -100
                 result_slide.append(mark)
             index_data = [[index, value] for index, value in
                           sorted(enumerate(result_slide), key=lambda x: x[1], reverse=True)]
@@ -107,7 +107,6 @@ class InitDataset:
             name = self.information['name'][j]
             single_result = self.all_patch[index_use][i][0]
             marked_area_location, marked_zero_area_location, result_level = single_result
-
             if index_use == 0:
                 config = copy.deepcopy(self.config)
                 config.get_zero_index_mode = 1
@@ -178,8 +177,20 @@ class InitDataset:
             one_level_result, one_num_level, one_level = self.operate.static_zero_list2zero_list_level(
                 marked_area_location)
             result_max_slide = self.result_max[index_use][i]
+            label_mil = np.array([np.float32(self.information['label'][j])])
+            label_non = np.array([np.float32(0)])
+            one_index_result_exist = [[] for _ in range(len(one_level_result))]
+            zero_index_result_exist = [[] for _ in range(len(zero_level_result))]
+            one_index_result_non_exist = [[] for _ in range(len(one_level_result))]
+            zero_index_result_non_exist = [[] for _ in range(len(zero_level_result))]
             one_index_result = [[] for _ in range(len(one_level_result))]
             zero_index_result = [[] for _ in range(len(zero_level_result))]
+            one_exist_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_exist_label_mil = [[] for _ in range(len(zero_level_result))]
+            one_non_exist_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_non_exist_label_mil = [[] for _ in range(len(zero_level_result))]
+            one_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_label_mil = [[] for _ in range(len(zero_level_result))]
             for k in range(top_k):
                 try:
                     result_use = result_max_slide[k]
@@ -187,14 +198,44 @@ class InitDataset:
                         patch = marked_area_location[result_use[1]]
                         for m in range(len(one_level_result)):
                             if patch in one_level_result[m]:
-                                one_index_result[m].append(one_level_result[m].index(patch))
+                                one_index_result_exist[m].append(one_level_result[m].index(patch))
+                                one_exist_label_mil[m].append(label_mil)
                     else:
                         patch = marked_zero_area_location[result_use[1]]
                         for m in range(len(zero_level_result)):
                             if patch in zero_level_result[m]:
-                                zero_index_result[m].append(zero_level_result[m].index(patch))
+                                zero_index_result_exist[m].append(zero_level_result[m].index(patch))
+                                zero_exist_label_mil[m].append(label_mil)
                 finally:
                     pass
+
+                try:
+                    for shift in range(len(result_max_slide)):
+                        if result_max_slide[-k - shift][2] != -100:
+                            result_use = result_max_slide[-k - shift]
+                            if result_use[0] == 0:
+                                patch = marked_area_location[result_use[1]]
+                                for m in range(len(one_level_result)):
+                                    if patch in one_level_result[m]:
+                                        one_index_result_non_exist[m].append(one_level_result[m].index(patch))
+                                        one_non_exist_label_mil[m].append(label_non)
+                            else:
+                                patch = marked_zero_area_location[result_use[1]]
+                                for m in range(len(zero_level_result)):
+                                    if patch in zero_level_result[m]:
+                                        zero_index_result_non_exist[m].append(zero_level_result[m].index(patch))
+                                        zero_non_exist_label_mil[m].append(label_non)
+                            break
+                finally:
+                    pass
+            for n in range(len(one_level_result)):
+                one_index_result[n] = one_index_result_exist[n] + one_index_result_non_exist[n]
+                one_label_mil[n] = one_exist_label_mil[n] + one_non_exist_label_mil[n]
+
+            for n in range(len(zero_level_result)):
+                zero_index_result[n] = zero_index_result_exist[n] + zero_index_result_non_exist[n]
+                zero_label_mil[n] = zero_exist_label_mil[n] + zero_non_exist_label_mil[n]
+
             one_num_result = [len(one_index_result[n]) for n in range(len(one_index_result))]
             zero_num_result = [len(zero_index_result[n]) for n in range(len(zero_index_result))]
 
@@ -205,8 +246,111 @@ class InitDataset:
             total_one_num += one_num_value
             total_zero_num += zero_num_value
             result.append((self.information['path'][j], name, one_index_result, zero_index_result, one_level_result,
-                           zero_level_result, i, j))
-        return DatasetForLoaderMIL(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self)
+                           zero_level_result, i, j, one_label_mil, zero_label_mil))
+        return DatasetForLoaderMIL(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self,
+                                   for_train=True)
+
+    def produce_dataset_test_mil(self, index_use, top_k=5):
+        result = []
+        total_one_num = 0
+        total_zero_num = 0
+        one_num_list = []
+        zero_num_list = []
+        for i in range(len(self.information['use_list'][index_use])):
+            j = self.information['use_list'][index_use][i]
+            name = self.information['name'][j]
+            single_result = self.all_patch[index_use][i][0]
+            marked_area_location, marked_zero_area_location, result_level = single_result
+
+            if index_use == 0:
+                config = copy.deepcopy(self.config)
+                config.get_zero_index_mode = 1
+            else:
+                config = self.config
+            # 临时处理，暂时采用的方法，训练时依照mark选patch
+
+            # zero_level_result, zero_result_reduce, zero_index_result, zero_num_result = self.operate.static_get_zero(
+            #     marked_zero_area_location, result_level, zero_num, config)
+            # one_level_result, one_result_reduce, one_index_result, one_num_result = self.operate.static_get_one(
+            #     marked_area_location, result_level, one_num, config)
+
+            zero_level_result, zero_num_level, zero_level = self.operate.static_zero_list2zero_list_level(
+                marked_zero_area_location)
+            one_level_result, one_num_level, one_level = self.operate.static_zero_list2zero_list_level(
+                marked_area_location)
+            result_max_slide = self.result_max[index_use][i]
+            label_mil = np.array([np.float32(self.information['label'][j])])
+            label_non = np.array([np.float32(0)])
+            one_index_result_exist = [[] for _ in range(len(one_level_result))]
+            zero_index_result_exist = [[] for _ in range(len(zero_level_result))]
+            one_index_result_non_exist = [[] for _ in range(len(one_level_result))]
+            zero_index_result_non_exist = [[] for _ in range(len(zero_level_result))]
+            one_index_result = [[] for _ in range(len(one_level_result))]
+            zero_index_result = [[] for _ in range(len(zero_level_result))]
+            one_exist_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_exist_label_mil = [[] for _ in range(len(zero_level_result))]
+            one_non_exist_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_non_exist_label_mil = [[] for _ in range(len(zero_level_result))]
+            one_label_mil = [[] for _ in range(len(one_level_result))]
+            zero_label_mil = [[] for _ in range(len(zero_level_result))]
+            for k in range(top_k):
+                try:
+                    result_use = result_max_slide[k]
+                    if result_use[0] == 0:
+                        patch = marked_area_location[result_use[1]]
+                        for m in range(len(one_level_result)):
+                            if patch in one_level_result[m]:
+                                one_index_result_exist[m].append(one_level_result[m].index(patch))
+                                one_exist_label_mil[m].append(label_mil)
+                    else:
+                        patch = marked_zero_area_location[result_use[1]]
+                        for m in range(len(zero_level_result)):
+                            if patch in zero_level_result[m]:
+                                zero_index_result_exist[m].append(zero_level_result[m].index(patch))
+                                zero_exist_label_mil[m].append(label_mil)
+                finally:
+                    pass
+
+                # try:
+                #     for shift in range(len(result_max_slide)):
+                #         if result_max_slide[-k - shift][2] != -100:
+                #             result_use = result_max_slide[-k - shift]
+                #             if result_use[0] == 0:
+                #                 patch = marked_area_location[result_use[1]]
+                #                 for m in range(len(one_level_result)):
+                #                     if patch in one_level_result[m]:
+                #                         one_index_result_non_exist[m].append(one_level_result[m].index(patch))
+                #                         one_non_exist_label_mil[m].append(label_non)
+                #             else:
+                #                 patch = marked_zero_area_location[result_use[1]]
+                #                 for m in range(len(zero_level_result)):
+                #                     if patch in zero_level_result[m]:
+                #                         zero_index_result_non_exist[m].append(zero_level_result[m].index(patch))
+                #                         zero_non_exist_label_mil[m].append(label_non)
+                #             break
+                # finally:
+                #     pass
+            for n in range(len(one_level_result)):
+                one_index_result[n] = one_index_result_exist[n] + one_index_result_non_exist[n]
+                one_label_mil[n] = one_exist_label_mil[n] + one_non_exist_label_mil[n]
+
+            for n in range(len(zero_level_result)):
+                zero_index_result[n] = zero_index_result_exist[n] + zero_index_result_non_exist[n]
+                zero_label_mil[n] = zero_exist_label_mil[n] + zero_non_exist_label_mil[n]
+
+            one_num_result = [len(one_index_result[n]) for n in range(len(one_index_result))]
+            zero_num_result = [len(zero_index_result[n]) for n in range(len(zero_index_result))]
+
+            one_num_value = self.operate.static_sum_list_num(one_num_result)
+            zero_num_value = self.operate.static_sum_list_num(zero_num_result)
+            one_num_list.append(one_num_value)
+            zero_num_list.append(zero_num_value)
+            total_one_num += one_num_value
+            total_zero_num += zero_num_value
+            result.append((self.information['path'][j], name, one_index_result, zero_index_result, one_level_result,
+                           zero_level_result, i, j, one_label_mil, zero_label_mil))
+        return DatasetForLoaderMIL(index_use, result, total_one_num, total_zero_num, one_num_list, zero_num_list, self,
+                                   for_train=True)
 
     def get_index(self, result, patch, position, index_use):
         # 该方案有点效率低下，主要因为level_area_location不能转化为area_location, 需要area_location转level_area_location时返回坐标关系才能直接映射
@@ -393,13 +537,15 @@ class DatasetForLoader:
 
 
 class DatasetForLoaderMIL:
-    def __init__(self, index_use, result, one_num, zero_num, one_num_list, zero_num_list, init_dataset: InitDataset):
+    def __init__(self, index_use, result, one_num, zero_num, one_num_list, zero_num_list, init_dataset: InitDataset,
+                 for_train=False):
         self.class_num = index_use
         self.all_result = result
         self.one_num = one_num
         self.zero_num = zero_num
         self.one_num_list = one_num_list
         self.zero_num_list = zero_num_list
+        self.for_train = for_train
         self.one_num_add_list = self.calculate(one_num_list)
         self.zero_num_add_list = self.calculate(zero_num_list)
         self.length = one_num + zero_num
@@ -420,17 +566,27 @@ class DatasetForLoaderMIL:
 
     def __getitem__(self, idx):
         one_or_zero, position, index = self.get_position_index(idx)
-        slide_name, name, one_index_result, zero_index_result, one_level_result, zero_level_result, i, j = \
-            self.all_result[position]
+        label_mil = None
+        one_label_mil = None
+        if self.for_train is False:
+            slide_name, name, one_index_result, zero_index_result, one_level_result, zero_level_result, i, j = \
+                self.all_result[position]
+        else:
+            slide_name, name, one_index_result, zero_index_result, one_level_result, zero_level_result, i, j, one_label_mil, zero_label_mil = \
+                self.all_result[position]
         slide = self.base_dataset.operate.read_slide(slide_name)
         index_position, index_index = self.get_index_in_index_result(index, one_or_zero, one_index_result,
                                                                      zero_index_result)
         if one_or_zero == 1:
             true_index = one_index_result[index_position][index_index]
             patch = one_level_result[index_position][true_index]
+            if self.for_train is True:
+                label_mil = one_label_mil[index_position][index_index]
         else:
             true_index = zero_index_result[index_position][index_index]
             patch = zero_level_result[index_position][true_index]
+            if self.for_train is True:
+                label_mil = zero_label_mil[index_position][index_index]
         [_, _, x, y, level, patch_size] = patch
         idx = x - self.base_dataset.operate.static_double_mul_div_int_mul_level(
             self.base_dataset.config.grid_size[0] * patch_size,
@@ -470,7 +626,7 @@ class DatasetForLoaderMIL:
                 img = cv2.warpAffine(img, matRotate, (img.shape[1], img.shape[1]))
                 label_grid = np.rot90(label_grid, num_rotate)
         img = np.array(img, dtype=np.float32).transpose((2, 0, 1))
-        img = (img - 128.0) / 128.0
+        img = img / 255.0
 
         grid_size = (2 * self.base_dataset.config.grid_size[0] + 1) * (2 * self.base_dataset.config.grid_size[1] + 1)
         img_flat = np.zeros(
@@ -492,7 +648,8 @@ class DatasetForLoaderMIL:
                 label_flat[idn] = label_grid[x_idx, y_idx]
                 idn += 1
         img_mil = img_flat[(len(label_flat) - 1) // 2]
-        label_mil = np.array([np.float32(self.base_dataset.information['label'][j])])
+        if self.for_train is False:
+            label_mil = np.array([np.float32(self.base_dataset.information['label'][j])])
         return img_flat, label_flat, img_mil, label_mil, np.array(patch), np.array([position, one_or_zero])
 
     def get_position_index(self, idx):
