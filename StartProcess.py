@@ -82,9 +82,9 @@ class FullProcess(GetInitDataset, DatasetRegularProcess):
             return self.train_dataset, self.val_dataset
         elif num == 2:
             time_start = time.time()
-            print("start build train total dataset")
+            print("start build test total dataset")
             self.test_dataset = self.dataset.produce_dataset_mil_total(2)
-            print("build train dataset time:" + str(time.time() - time_start))
+            print("build test dataset time:" + str(time.time() - time_start))
             return self.test_dataset
 
 

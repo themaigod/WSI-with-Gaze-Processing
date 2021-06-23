@@ -81,7 +81,7 @@ class InitDataset:
                 try:
                     mark = one_record[j][0]
                 except:
-                    mark = 0
+                    mark = -100
                 result_slide.append(mark)
             for k in range(len_zero):
                 try:
@@ -370,6 +370,18 @@ class InitDataset:
                 self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index][0] = result[i]
             except:
                 self.slide_record[index_use][slide_index][int(1 - one_or_zero)][index].append(result[i][0])
+
+    def calc_result(self, index_use):
+        result_label = []
+        result_mil = []
+        for i in range(len(self.information['use_list'][index_use])):
+            j = self.information['use_list'][index_use][i]
+            result_max_slide = self.result_max[index_use][i]
+            label_mil = int(self.information['label'][j])
+            result_use = result_max_slide[0][2]
+            result_label.append(label_mil)
+            result_mil.append(float(result_use))
+        return result_mil, result_label
 
 
 class DatasetForLoader:
