@@ -1,6 +1,8 @@
 from produce_dataset import *
 
 
+
+
 # def static_all_list(self, level_dimensions, detect_level, level_downsamples, patch_size, mode=0, location_type=0):
 #     # 根据detect_level提供的level获得在这些level上的patch，包括detect location[location_type = 0]、area location[location_type = 1]两种形式，注意area location
 #     # 形式的时候，注视点数量设为0。location_type = 2时提供一种不完备的形式, 即在代表每个patch元素中，同时储存detect location和area location
