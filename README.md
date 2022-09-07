@@ -1,37 +1,88 @@
-# process_operate
+# WSI with Gaze Processing
 
-#### 介绍
-预处理相关操作
+Author: JIANG Maiqi
 
-#### 软件架构
-软件架构说明
+## Introduction
+The whole slide image (WSI) is a kind of medical image with huge size. It is hard to process the whole slide image as general image. 
+In this repository, we preprocess the data by splitting WSI to patches, following the doctor's gaze. The gaze is the doctor's attention to the WSI.
+So, we can use the gaze to split the WSI to patches which are the input of deep learning model. 
+The model can be used to predict the doctor's attention to the WSI and classify the WSI.
+
+This repository is only focus on the preprocessing of WSI. The model is not included in this repository.
+
+## Data Preparation
+
+It is based on private wsi data, so we can not provide the data. There is another private data need to be prepared. The data is the 
+doctor's gaze data. If you want to use your own gaze data, the gaze data loading can reference `./tool/dataProcessor.py` and `/tool/recReader.py`. 
+These two files (provided by QIAO Siyu, Northeastern University, China) are used to load the gaze data. The gaze data is `.rec` file and `.erc` file. These files are binary 
+files. They are file formats. 
+
+## Environment
+
+As for the installation, you need to check out the environment first. The environment is as follows:
+
+```angular2html
+python ~= 3.8.13
+CUDA ~= 11.3
+CuDNN ~= 8.2.0
+(Optional) MiniConda
+```
+
+### Install OpenSlide
+
+If you are using Windows, you can install OpenSlide by following the guidance from
+[OpenSlide Website](https://openslide.org/api/python/#installing).
+
+For linux, the installation is a little easier. For example, in ubuntu, you can just use the following command:
+
+```angular2html
+apt install python-openslide    
+pip install Openslide-python
+```
+OpenSlide is a useful tool for reading WSI. 
+
+### Install OpenCV
+
+In order to process the WSI, you need to install OpenCV. In ubuntu, you can install it by following the command:
+
+```angular2html
+sudo apt-get install python3-opencv
+```
+
+In Windows, you can install it by following the command:
+
+```angular2html
+pip install opencv-python
+pip install opencv-contrib-python
+```
+
+### Install Pytorch
+
+Following your CUDA version, you can install Pytorch as suggestion command from 
+[Pytorch Official Page](https://pytorch.org/get-started/locally/). For example, if you are using CUDA 11.3, you can install Pytorch by following the command:
+
+```angular2html
+conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch  # if you are using conda
+```
+
+## Usage
+
+You can import this repository to your project by following the command:
+
+```
+import sys
+import_path = {repository folder}
+if import_path[-1] == '/':
+    import_path = import_path[:-1]
+sys.path.append(import_path)
+from StartProcess import FullProcess
+```
+
+The `FullProcess` is the main class of this repository. You can use it to preprocess the WSI. The usage is as follows:
+
+```
+process_func = FullProcess({gaze folder}, init_status=False)
+base_dataset = process_func.dataset
+```
 
 
-#### 安装教程
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### 使用说明
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
-
-#### 参与贡献
-
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
-
-
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
